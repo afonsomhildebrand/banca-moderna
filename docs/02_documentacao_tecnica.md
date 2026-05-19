@@ -155,7 +155,7 @@ Driver: PyMySQL.
 URL padrao:
 
 ```text
-mysql+pymysql://banca_user:banca_password@db:3306/banca_moderna
+mysql+pymysql://banca_user:<senha-do-mysql>@db:3306/banca_moderna
 ```
 
 O schema e criado automaticamente no startup com:
@@ -361,10 +361,13 @@ Arquivo `.env`:
 ```text
 MYSQL_DATABASE=banca_moderna
 MYSQL_USER=banca_user
-MYSQL_PASSWORD=banca_password
-MYSQL_ROOT_PASSWORD=root_password
-DATABASE_URL=mysql+pymysql://banca_user:banca_password@db:3306/banca_moderna
+MYSQL_PASSWORD=gere-uma-senha-forte-para-o-mysql
+MYSQL_ROOT_PASSWORD=gere-uma-senha-forte-para-root
+DATABASE_URL=mysql+pymysql://banca_user:gere-uma-senha-forte-para-o-mysql@db:3306/banca_moderna
 APP_SECRET_KEY=gere-uma-chave-longa-e-aleatoria-antes-de-usar
+SECURE_COOKIES=false
+INITIAL_ADMIN_EMAIL=admin@bancamoderna.local
+INITIAL_ADMIN_PASSWORD=gere-uma-senha-admin-forte
 ```
 
 ## 11. Observacao sobre NF e cobranca oficial

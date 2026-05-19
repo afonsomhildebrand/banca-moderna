@@ -84,8 +84,8 @@ http://localhost:8080
 ## 7. Login inicial
 
 ```text
-E-mail: admin@bancamoderna.local
-Senha: admin123
+E-mail: valor de INITIAL_ADMIN_EMAIL no .env
+Senha: valor de INITIAL_ADMIN_PASSWORD no .env
 ```
 
 ## 8. Parar o sistema
@@ -163,4 +163,3 @@ Depois acesse:
 ```text
 http://localhost:8081
 ```
-

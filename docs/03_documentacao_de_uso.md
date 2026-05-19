@@ -11,8 +11,8 @@ http://localhost:8000
 Login inicial:
 
 ```text
-E-mail: admin@bancamoderna.local
-Senha: admin123
+E-mail: valor de INITIAL_ADMIN_EMAIL no .env
+Senha: valor de INITIAL_ADMIN_PASSWORD no .env
 ```
 
 ## 2. Entrar como administrador

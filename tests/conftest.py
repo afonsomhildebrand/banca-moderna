@@ -10,6 +10,8 @@ from sqlalchemy.pool import StaticPool
 
 os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["APP_SECRET_KEY"] = "test-secret-key"
+os.environ["INITIAL_ADMIN_EMAIL"] = "admin@bancamoderna.local"
+os.environ["INITIAL_ADMIN_PASSWORD"] = "admin12345"
 
 from app.bootstrap import seed_database
 from app.database import Base, get_db
@@ -47,7 +49,7 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
     app.dependency_overrides.clear()
 
 
-def login(client: TestClient, email: str = "admin@bancamoderna.local", password: str = "admin123"):
+def login(client: TestClient, email: str = "admin@bancamoderna.local", password: str = "admin12345"):
     response = client.get("/login")
     match = search(r'name="csrf_token" value="([^"]+)"', response.text)
     assert match is not None

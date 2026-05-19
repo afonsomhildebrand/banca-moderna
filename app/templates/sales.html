@@ -195,6 +195,14 @@
     return Number(String(value).replace(",", ".")) || 0;
   }
 
+  function appendHiddenItem(name, value) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value;
+    hiddenItems.appendChild(input);
+  }
+
   function renderCart() {
     cartList.innerHTML = "";
     hiddenItems.innerHTML = "";
@@ -212,26 +220,51 @@
 
       const row = document.createElement("div");
       row.className = "cart-row";
-      row.innerHTML = `
-        <div>
-          <strong>${item.name}</strong>
-          <span>${currency.format(item.price)} cada</span>
-        </div>
-        <div class="qty-control">
-          <button type="button" data-action="dec" data-id="${item.id}">-</button>
-          <input type="number" min="1" max="${item.stock}" value="${item.quantity}" data-action="qty" data-id="${item.id}">
-          <button type="button" data-action="inc" data-id="${item.id}">+</button>
-        </div>
-        <b>${currency.format(lineTotal)}</b>
-        <button type="button" class="remove-item" data-action="remove" data-id="${item.id}">Remover</button>
-      `;
+
+      const info = document.createElement("div");
+      const name = document.createElement("strong");
+      name.textContent = item.name;
+      const unitPrice = document.createElement("span");
+      unitPrice.textContent = `${currency.format(item.price)} cada`;
+      info.append(name, unitPrice);
+
+      const quantityControl = document.createElement("div");
+      quantityControl.className = "qty-control";
+      const decrement = document.createElement("button");
+      decrement.type = "button";
+      decrement.dataset.action = "dec";
+      decrement.dataset.id = item.id;
+      decrement.textContent = "-";
+      const quantityInput = document.createElement("input");
+      quantityInput.type = "number";
+      quantityInput.min = "1";
+      quantityInput.max = String(item.stock);
+      quantityInput.value = String(item.quantity);
+      quantityInput.dataset.action = "qty";
+      quantityInput.dataset.id = item.id;
+      const increment = document.createElement("button");
+      increment.type = "button";
+      increment.dataset.action = "inc";
+      increment.dataset.id = item.id;
+      increment.textContent = "+";
+      quantityControl.append(decrement, quantityInput, increment);
+
+      const total = document.createElement("b");
+      total.textContent = currency.format(lineTotal);
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "remove-item";
+      remove.dataset.action = "remove";
+      remove.dataset.id = item.id;
+      remove.textContent = "Remover";
+
+      row.append(info, quantityControl, total, remove);
       cartList.appendChild(row);
 
-      hiddenItems.insertAdjacentHTML("beforeend", `
-        <input type="hidden" name="product_id" value="${item.id}">
-        <input type="hidden" name="quantity" value="${item.quantity}">
-        <input type="hidden" name="unit_price" value="${item.price.toFixed(2)}">
-      `);
+      appendHiddenItem("product_id", item.id);
+      appendHiddenItem("quantity", item.quantity);
+      appendHiddenItem("unit_price", item.price.toFixed(2));
     }
 
     const discount = parsePrice(discountInput.value);

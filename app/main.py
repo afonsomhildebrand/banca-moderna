@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal
 from secrets import token_urlsafe
+from time import monotonic
 from urllib.parse import parse_qs
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
@@ -14,7 +15,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.auth import ROLE_LABELS, get_current_user, has_permission, require_permission, visible_menu
 from app.bootstrap import seed_database
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.database import Base, engine, get_db
 from app.invoices import issue_invoice, issue_service_invoice
 from app.models import (
@@ -32,13 +33,15 @@ from app.models import (
     Supplier,
     User,
 )
-from app.security import hash_password, verify_password
+from app.security import hash_password, validate_password_strength, verify_password
 from app.services import StockError, create_payment_charge, money, register_completed_service, register_purchase, register_sale_items
 
 
+settings = get_settings()
 app = FastAPI(title="Banca Moderna")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+login_failures: dict[str, list[float]] = {}
 
 
 def get_csrf_token(request: Request) -> str:
@@ -52,7 +55,20 @@ def get_csrf_token(request: Request) -> str:
 @app.middleware("http")
 async def csrf_middleware(request: Request, call_next):
     if request.method == "POST":
+        content_type = request.headers.get("content-type", "")
+        if not content_type.startswith("application/x-www-form-urlencoded"):
+            return templates.TemplateResponse(
+                "error.html",
+                {"request": request, "status_code": 415, "detail": "Tipo de formulario nao suportado."},
+                status_code=415,
+            )
         body = await request.body()
+        if len(body) > settings.csrf_max_body_bytes:
+            return templates.TemplateResponse(
+                "error.html",
+                {"request": request, "status_code": 413, "detail": "Formulario muito grande."},
+                status_code=413,
+            )
         parsed_form = parse_qs(body.decode(), keep_blank_values=True)
         submitted_token = (parsed_form.get("csrf_token") or [None])[0]
         session_token = request.session.get("csrf_token")
@@ -70,7 +86,39 @@ async def csrf_middleware(request: Request, call_next):
     return await call_next(request)
 
 
-app.add_middleware(SessionMiddleware, secret_key=get_settings().app_secret_key, same_site="lax")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.app_secret_key,
+    same_site="lax",
+    https_only=settings.secure_cookies,
+)
+
+
+def login_rate_key(request: Request, email: str) -> str:
+    client_host = request.client.host if request.client else "unknown"
+    return f"{client_host}:{email.strip().lower()}"
+
+
+def too_many_login_attempts(request: Request, email: str, app_settings: Settings = settings) -> bool:
+    now = monotonic()
+    key = login_rate_key(request, email)
+    window_start = now - app_settings.login_rate_limit_window_seconds
+    attempts = [attempt for attempt in login_failures.get(key, []) if attempt >= window_start]
+    login_failures[key] = attempts
+    return len(attempts) >= app_settings.login_rate_limit_attempts
+
+
+def record_login_failure(request: Request, email: str, app_settings: Settings = settings) -> None:
+    key = login_rate_key(request, email)
+    now = monotonic()
+    window_start = now - app_settings.login_rate_limit_window_seconds
+    attempts = [attempt for attempt in login_failures.get(key, []) if attempt >= window_start]
+    attempts.append(now)
+    login_failures[key] = attempts
+
+
+def clear_login_failures(request: Request, email: str) -> None:
+    login_failures.pop(login_rate_key(request, email), None)
 
 
 def commit_or_error(db: Session, message: str) -> None:
@@ -165,14 +213,22 @@ def login(
     password: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    if too_many_login_attempts(request, email):
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "error": "Muitas tentativas de login. Aguarde alguns minutos e tente novamente.", "csrf_token": get_csrf_token(request)},
+            status_code=429,
+        )
     user = db.query(User).filter(User.email == email.strip().lower()).first()
     if user is None or not user.active or not verify_password(password, user.password_hash):
+        record_login_failure(request, email)
         return templates.TemplateResponse(
             "login.html",
             {"request": request, "error": "E-mail ou senha invalidos.", "csrf_token": get_csrf_token(request)},
             status_code=400,
         )
 
+    clear_login_failures(request, email)
     csrf_token = get_csrf_token(request)
     request.session.clear()
     request.session["user_id"] = user.id
@@ -676,8 +732,12 @@ def create_user(
     normalized_email = email.strip().lower()
     if role not in ROLE_LABELS:
         raise HTTPException(status_code=400, detail="Perfil de acesso invalido.")
-    if not name.strip() or len(password) < 6:
-        raise HTTPException(status_code=400, detail="Nome e senha com pelo menos 6 caracteres sao obrigatorios.")
+    if not name.strip():
+        raise HTTPException(status_code=400, detail="Nome e obrigatorio.")
+    try:
+        validate_password_strength(password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if db.query(User).filter(User.email == normalized_email).first():
         rows = db.query(User).order_by(User.name).all()
         return templates.TemplateResponse(

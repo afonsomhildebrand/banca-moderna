@@ -44,15 +44,15 @@ docker compose up --build -d
 - Sistema: `MySQL`
 - Servidor: `db`
 - Usuario: `banca_user`
-- Senha: `banca_password`
+- Senha: valor definido em `MYSQL_PASSWORD` no `.env`
 - Banco: `banca_moderna`
 
 ## Login e acesso
 
-O sistema cria um usuario administrador inicial:
+O sistema cria um usuario administrador inicial somente quando `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD` estiverem definidos no `.env`:
 
-- E-mail: `admin@bancamoderna.local`
-- Senha: `admin123`
+- E-mail: valor de `INITIAL_ADMIN_EMAIL`
+- Senha: valor de `INITIAL_ADMIN_PASSWORD`
 
 Perfis disponiveis:
 

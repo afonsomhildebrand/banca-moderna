@@ -55,7 +55,7 @@ Resultado esperado:
 Dados:
 
 - E-mail: `admin@bancamoderna.local`.
-- Senha: `admin123`.
+- Senha: valor definido em `INITIAL_ADMIN_PASSWORD`.
 
 Resultado esperado:
 

@@ -36,16 +36,19 @@ Exemplo:
 ```text
 MYSQL_DATABASE=banca_moderna
 MYSQL_USER=banca_user
-MYSQL_PASSWORD=banca_password
-MYSQL_ROOT_PASSWORD=root_password
-DATABASE_URL=mysql+pymysql://banca_user:banca_password@db:3306/banca_moderna
+MYSQL_PASSWORD=gere-uma-senha-forte-para-o-mysql
+MYSQL_ROOT_PASSWORD=gere-uma-senha-forte-para-root
+DATABASE_URL=mysql+pymysql://banca_user:gere-uma-senha-forte-para-o-mysql@db:3306/banca_moderna
 APP_SECRET_KEY=gere-uma-chave-longa-e-aleatoria-antes-de-usar
+SECURE_COOKIES=false
+INITIAL_ADMIN_EMAIL=admin@bancamoderna.local
+INITIAL_ADMIN_PASSWORD=gere-uma-senha-admin-forte
 ```
 
 Recomendacao:
 
-- Trocar `APP_SECRET_KEY`.
-- Trocar senhas antes de usar em ambiente real.
+- Gerar valores fortes para `APP_SECRET_KEY`, `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD` e `INITIAL_ADMIN_PASSWORD`.
+- Em producao com HTTPS, usar `SECURE_COOKIES=true`.
 
 ## 4. Subir ambiente
 
@@ -85,7 +88,7 @@ Dados:
 Sistema: MySQL
 Servidor: db
 Usuario: banca_user
-Senha: banca_password
+Senha: valor definido em `MYSQL_PASSWORD`
 Banco: banca_moderna
 ```
 
@@ -129,13 +132,13 @@ docker compose up -d
 Criar backup:
 
 ```bash
-docker compose exec db mysqldump -ubanca_user -pbanca_password banca_moderna > backup_banca_moderna.sql
+docker compose exec db sh -c 'mysqldump -ubanca_user -p"$MYSQL_PASSWORD" banca_moderna' > backup_banca_moderna.sql
 ```
 
 Restaurar backup:
 
 ```bash
-docker compose exec -T db mysql -ubanca_user -pbanca_password banca_moderna < backup_banca_moderna.sql
+docker compose exec -T db sh -c 'mysql -ubanca_user -p"$MYSQL_PASSWORD" banca_moderna' < backup_banca_moderna.sql
 ```
 
 ## 13. Observacoes de producao

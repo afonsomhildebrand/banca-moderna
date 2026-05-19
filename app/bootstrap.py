@@ -1,7 +1,8 @@
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.models import Category, ProductKind, User
-from app.security import hash_password
+from app.security import hash_password, validate_password_strength, verify_password
 
 
 DEFAULT_CATEGORIES = [
@@ -26,16 +27,23 @@ def seed_database(db: Session) -> None:
         if not exists:
             db.add(Category(name=name, kind=kind))
 
-    admin = db.query(User).filter(User.email == "admin@bancamoderna.local").first()
-    if not admin:
-        db.add(
-            User(
-                name="Administrador",
-                email="admin@bancamoderna.local",
-                password_hash=hash_password("admin123"),
-                role="admin",
+    settings = get_settings()
+    admin_email = settings.initial_admin_email
+    admin_password = settings.initial_admin_password
+    if admin_email and admin_password:
+        validate_password_strength(admin_password)
+        admin = db.query(User).filter(User.email == admin_email.strip().lower()).first()
+        if not admin:
+            db.add(
+                User(
+                    name="Administrador",
+                    email=admin_email.strip().lower(),
+                    password_hash=hash_password(admin_password),
+                    role="admin",
+                )
             )
-        )
+        elif verify_password("admin123", admin.password_hash):
+            admin.password_hash = hash_password(admin_password)
 
     db.query(User).filter(User.role.in_(["gerente", "vendedor", "estoquista"])).update(
         {User.role: "funcionario"},

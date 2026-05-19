@@ -13,7 +13,7 @@ def csrf_token(client, path: str = "/login") -> str:
     return match.group(1)
 
 
-def login(client, email: str = "admin@bancamoderna.local", password: str = "admin123"):
+def login(client, email: str = "admin@bancamoderna.local", password: str = "admin12345"):
     return client.post(
         "/login",
         data={"email": email, "password": password, "csrf_token": csrf_token(client)},
