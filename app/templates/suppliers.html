@@ -4,6 +4,7 @@
 {% block subheading %}Fornecedores nacionais e internacionais.{% endblock %}
 
 {% block content %}
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
 {% if can("suppliers.create") %}
 <section class="panel">
   <h2>Novo fornecedor</h2>
@@ -23,12 +24,25 @@
 <section class="panel">
   <h2>Fornecedores cadastrados</h2>
   <table>
-    <thead><tr><th>Nome</th><th>Pais</th><th>Moeda</th><th>Telefone</th><th>E-mail</th></tr></thead>
+    <thead><tr><th>Nome</th><th>Documento</th><th>Pais</th><th>Moeda</th><th>Telefone</th><th>E-mail</th><th>Acao</th></tr></thead>
     <tbody>
       {% for supplier in suppliers %}
-      <tr><td>{{ supplier.name }}</td><td>{{ supplier.country }}</td><td>{{ supplier.currency }}</td><td>{{ supplier.phone or "" }}</td><td>{{ supplier.email or "" }}</td></tr>
+      <tr>
+        <td><input form="supplier-{{ supplier.id }}" name="name" value="{{ supplier.name }}" required></td>
+        <td><input form="supplier-{{ supplier.id }}" name="document" value="{{ supplier.document or '' }}"></td>
+        <td><input form="supplier-{{ supplier.id }}" name="country" value="{{ supplier.country }}"></td>
+        <td><input form="supplier-{{ supplier.id }}" name="currency" value="{{ supplier.currency }}"></td>
+        <td><input form="supplier-{{ supplier.id }}" name="phone" value="{{ supplier.phone or '' }}"></td>
+        <td><input form="supplier-{{ supplier.id }}" name="email" type="email" value="{{ supplier.email or '' }}"></td>
+        <td>
+          <form id="supplier-{{ supplier.id }}" method="post" action="/fornecedores/{{ supplier.id }}/editar" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="secondary">Salvar</button>
+          </form>
+        </td>
+      </tr>
       {% else %}
-      <tr><td colspan="5">Nenhum fornecedor cadastrado.</td></tr>
+      <tr><td colspan="7">Nenhum fornecedor cadastrado.</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -15,6 +15,8 @@ E-mail: valor de INITIAL_ADMIN_EMAIL no .env
 Senha: valor de INITIAL_ADMIN_PASSWORD no .env
 ```
 
+Se o login inicial nao funcionar, confirme se `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD` foram definidos antes de subir a aplicacao. A senha deve ter pelo menos 10 caracteres e nao pode ser uma senha comum.
+
 ## 2. Entrar como administrador
 
 1. Acesse `/login`.
@@ -37,7 +39,7 @@ O funcionario sera direcionado diretamente para Vendas.
 Somente administrador.
 
 1. Acesse `Usuarios`.
-2. Preencha nome, e-mail e senha.
+2. Preencha nome, e-mail e uma senha com pelo menos 10 caracteres.
 3. Em perfil, selecione `Funcionario`.
 4. Deixe `Ativo` marcado.
 5. Clique em `Salvar usuario`.
@@ -56,7 +58,17 @@ Somente administrador.
 8. Informe estoque minimo.
 9. Clique em `Salvar produto`.
 
-## 6. Registrar compra
+## 6. Alterar cadastros
+
+Somente administrador.
+
+1. Acesse `Produtos`, `Clientes`, `Fornecedores` ou `Usuarios`.
+2. Na tabela de cadastrados, edite os campos diretamente na linha desejada.
+3. Clique em `Salvar` na propria linha.
+
+Em `Usuarios`, deixe `Nova senha` em branco para manter a senha atual. Ao alterar o proprio usuario, o sistema mantem a conta ativa.
+
+## 7. Registrar compra
 
 Somente administrador.
 
@@ -70,7 +82,7 @@ Somente administrador.
 
 O sistema aumenta automaticamente o estoque.
 
-## 7. Registrar venda
+## 8. Registrar venda
 
 Administrador ou funcionario.
 
@@ -91,7 +103,7 @@ Leitores USB que funcionam como teclado nao precisam de configuracao extra. Deix
 
 Quando a venda for Pix, boleto, debito ou credito, o sistema gera uma cobranca interna. O link da cobranca aparece no historico da venda.
 
-## 8. Registrar servico concluido
+## 9. Registrar servico concluido
 
 Somente administrador.
 
@@ -106,7 +118,7 @@ Somente administrador.
 
 O sistema registra o servico como concluido. Para Pix, boleto, debito ou credito, uma cobranca interna fica disponivel no historico.
 
-## 9. Abrir cobranca
+## 10. Abrir cobranca
 
 Administrador ou funcionario quando a cobranca for de venda; administrador quando for de servico.
 
@@ -117,7 +129,7 @@ Administrador ou funcionario quando a cobranca for de venda; administrador quand
 
 Boletos, Pix e cartoes sao controles internos. Para cobranca bancaria real, integre o sistema a banco, PSP Pix ou adquirente.
 
-## 10. Emitir NF interna
+## 11. Emitir NF interna
 
 Administrador ou funcionario.
 
@@ -136,7 +148,7 @@ Para emitir NF interna de servico:
 3. Clique em `Emitir NF`.
 4. O sistema abrira a pagina da NF de servico.
 
-## 11. Consultar estoque
+## 12. Consultar estoque
 
 Somente administrador.
 
@@ -145,6 +157,14 @@ Somente administrador.
 3. Verifique status baixo ou ok.
 4. Consulte movimentacoes.
 
-## 12. Sair do sistema
+## 13. Sair do sistema
 
 Clique em `Sair` no menu lateral.
+
+## 14. Seguranca no uso diario
+
+- Nao compartilhe a conta de administrador.
+- Crie usuarios individuais para funcionarios.
+- Desative usuarios que nao devem mais acessar o sistema.
+- Use senhas fortes e diferentes das senhas de outros sistemas.
+- Em caso de muitas tentativas de login incorretas, aguarde alguns minutos antes de tentar novamente.

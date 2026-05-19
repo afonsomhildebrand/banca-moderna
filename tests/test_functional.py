@@ -2,7 +2,7 @@ from decimal import Decimal
 from re import search
 from urllib.parse import urlencode
 
-from app.models import PaymentCharge, Product, ProductKind, ServiceOrder, User
+from app.models import Customer, PaymentCharge, Product, ProductKind, ServiceOrder, Supplier, User
 from app.security import hash_password
 
 
@@ -128,6 +128,149 @@ def test_admin_can_create_product_and_make_sale(client, db_session):
     assert product.quantity_on_hand == 2
     charge = db_session.query(PaymentCharge).filter(PaymentCharge.method == "boleto").one()
     assert charge.digitable_line
+
+
+def test_admin_can_update_product_registration(client, db_session):
+    login(client)
+    supplier = Supplier(name="Distribuidora Antiga", country="Brasil", currency="BRL")
+    product = Product(
+        sku="EDIT-001",
+        barcode="1112223334445",
+        name="Produto Antigo",
+        kind=ProductKind.other,
+        cost_price=Decimal("2.50"),
+        sale_price=Decimal("8.90"),
+        quantity_on_hand=3,
+        min_quantity=1,
+    )
+    db_session.add_all([supplier, product])
+    db_session.commit()
+
+    response = client.post(
+        f"/produtos/{product.id}/editar",
+        data={
+            "csrf_token": csrf_token(client, "/produtos"),
+            "sku": "EDIT-002",
+            "barcode": "9998887776665",
+            "name": "Produto Atualizado",
+            "kind": "editorial",
+            "category_id": "",
+            "supplier_id": str(supplier.id),
+            "origin_country": "Argentina",
+            "cost_price": "4.20",
+            "sale_price": "12.30",
+            "quantity_on_hand": "9",
+            "min_quantity": "2",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    db_session.refresh(product)
+    assert product.sku == "EDIT-002"
+    assert product.barcode == "9998887776665"
+    assert product.name == "Produto Atualizado"
+    assert product.kind == ProductKind.editorial
+    assert product.supplier_id == supplier.id
+    assert product.origin_country == "Argentina"
+    assert product.cost_price == Decimal("4.20")
+    assert product.sale_price == Decimal("12.30")
+    assert product.quantity_on_hand == 9
+    assert product.min_quantity == 2
+
+
+def test_admin_can_update_customer_registration(client, db_session):
+    login(client)
+    customer = Customer(name="Cliente Antigo", phone="11999990000", email="antigo@example.com", document="123")
+    db_session.add(customer)
+    db_session.commit()
+
+    response = client.post(
+        f"/clientes/{customer.id}/editar",
+        data={
+            "csrf_token": csrf_token(client, "/clientes"),
+            "name": "Cliente Atualizado",
+            "phone": "11888887777",
+            "email": "novo@example.com",
+            "document": "456",
+            "notes": "Prefere entrega pela manha",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    db_session.refresh(customer)
+    assert customer.name == "Cliente Atualizado"
+    assert customer.phone == "11888887777"
+    assert customer.email == "novo@example.com"
+    assert customer.document == "456"
+    assert customer.notes == "Prefere entrega pela manha"
+
+
+def test_admin_can_update_supplier_registration(client, db_session):
+    login(client)
+    supplier = Supplier(name="Fornecedor Antigo", country="Brasil", currency="BRL", phone="1133332222")
+    db_session.add(supplier)
+    db_session.commit()
+
+    response = client.post(
+        f"/fornecedores/{supplier.id}/editar",
+        data={
+            "csrf_token": csrf_token(client, "/fornecedores"),
+            "name": "Fornecedor Atualizado",
+            "document": "99.999.999/0001-99",
+            "country": "Portugal",
+            "currency": "eur",
+            "phone": "+351 210000000",
+            "email": "comercial@fornecedor.example",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    db_session.refresh(supplier)
+    assert supplier.name == "Fornecedor Atualizado"
+    assert supplier.document == "99.999.999/0001-99"
+    assert supplier.country == "Portugal"
+    assert supplier.currency == "EUR"
+    assert supplier.phone == "+351 210000000"
+    assert supplier.email == "comercial@fornecedor.example"
+
+
+def test_admin_can_update_user_registration_and_password(client, db_session):
+    login(client)
+    user = User(
+        name="Operador Antigo",
+        email="operador-antigo@example.com",
+        password_hash=hash_password("senha-antiga"),
+        role="funcionario",
+        active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    response = client.post(
+        f"/usuarios/{user.id}/editar",
+        data={
+            "csrf_token": csrf_token(client, "/usuarios"),
+            "name": "Operador Atualizado",
+            "email": "operador-novo@example.com",
+            "password": "SenhaForte123",
+            "role": "admin",
+            "active": "on",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    db_session.refresh(user)
+    assert user.name == "Operador Atualizado"
+    assert user.email == "operador-novo@example.com"
+    assert user.role == "admin"
+    assert user.active is True
+
+    client.post("/logout", data={"csrf_token": csrf_token(client, "/")}, follow_redirects=False)
+    assert login(client, "operador-novo@example.com", "SenhaForte123").status_code == 303
 
 
 def test_issue_invoice_from_sale_history(client, db_session):

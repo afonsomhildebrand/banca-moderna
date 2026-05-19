@@ -4,6 +4,7 @@
 {% block subheading %}Cadastro para vendas identificadas e historico.{% endblock %}
 
 {% block content %}
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
 {% if can("customers.create") %}
 <section class="panel">
   <h2>Novo cliente</h2>
@@ -22,12 +23,24 @@
 <section class="panel">
   <h2>Clientes cadastrados</h2>
   <table>
-    <thead><tr><th>Nome</th><th>Telefone</th><th>E-mail</th><th>Documento</th></tr></thead>
+    <thead><tr><th>Nome</th><th>Telefone</th><th>E-mail</th><th>Documento</th><th>Observacoes</th><th>Acao</th></tr></thead>
     <tbody>
       {% for customer in customers %}
-      <tr><td>{{ customer.name }}</td><td>{{ customer.phone or "" }}</td><td>{{ customer.email or "" }}</td><td>{{ customer.document or "" }}</td></tr>
+      <tr>
+        <td><input form="customer-{{ customer.id }}" name="name" value="{{ customer.name }}" required></td>
+        <td><input form="customer-{{ customer.id }}" name="phone" value="{{ customer.phone or '' }}"></td>
+        <td><input form="customer-{{ customer.id }}" name="email" type="email" value="{{ customer.email or '' }}"></td>
+        <td><input form="customer-{{ customer.id }}" name="document" value="{{ customer.document or '' }}"></td>
+        <td><input form="customer-{{ customer.id }}" name="notes" value="{{ customer.notes or '' }}"></td>
+        <td>
+          <form id="customer-{{ customer.id }}" method="post" action="/clientes/{{ customer.id }}/editar" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="secondary">Salvar</button>
+          </form>
+        </td>
+      </tr>
       {% else %}
-      <tr><td colspan="4">Nenhum cliente cadastrado.</td></tr>
+      <tr><td colspan="6">Nenhum cliente cadastrado.</td></tr>
       {% endfor %}
     </tbody>
   </table>

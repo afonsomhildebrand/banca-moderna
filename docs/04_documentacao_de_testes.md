@@ -74,6 +74,15 @@ Resultado esperado:
 
 - Sistema exibe `E-mail ou senha invalidos`.
 
+### Limite de tentativas de login
+
+1. Tentar login com senha incorreta varias vezes para o mesmo e-mail.
+
+Resultado esperado:
+
+- Apos o limite configurado, o sistema retorna mensagem de muitas tentativas.
+- Apos alguns minutos, novas tentativas voltam a ser aceitas.
+
 ## 4. Testes de permissao
 
 ### Administrador acessa tudo
@@ -118,7 +127,35 @@ Resultado esperado:
 - Produto aparece na tela de vendas.
 - Codigo de barras aparece no cadastro e fica disponivel na tela de vendas.
 
-## 6. Testes de compra e estoque
+### Alterar produto
+
+1. Entrar como administrador.
+2. Acessar `Produtos`.
+3. Alterar SKU, codigo, nome, tipo, fornecedor, custo, preco e estoque na linha de um produto.
+4. Clicar em `Salvar`.
+
+Resultado esperado:
+
+- Produto permanece na lista com os novos dados.
+- Novo codigo de barras fica disponivel para venda.
+
+## 6. Testes de cadastros
+
+### Alterar cliente, fornecedor e usuario
+
+1. Entrar como administrador.
+2. Acessar `Clientes`, `Fornecedores` e `Usuarios`.
+3. Alterar os campos de um registro em cada tela.
+4. Clicar em `Salvar` na linha editada.
+
+Resultado esperado:
+
+- Cliente salva nome, telefone, e-mail, documento e observacoes.
+- Fornecedor salva nome, documento, pais, moeda, telefone e e-mail.
+- Usuario salva nome, e-mail, perfil, status e, quando preenchida, nova senha.
+- Campo `Nova senha` vazio mantem a senha atual.
+
+## 7. Testes de compra e estoque
 
 ### Registrar compra
 
@@ -132,7 +169,7 @@ Resultado esperado:
 - Estoque do produto aumenta em 10.
 - Movimentacao de estoque tipo `purchase` e criada.
 
-## 7. Testes de venda
+## 8. Testes de venda
 
 ### Venda com um item
 
@@ -159,6 +196,16 @@ Resultado esperado:
 - Produto correspondente e adicionado ao carrinho.
 - Sistema informa sucesso na leitura.
 - Codigo inexistente informa que nao foi encontrado ou esta sem estoque.
+
+### Nome de produto com HTML
+
+1. Cadastrar um produto com caracteres como `<`, `>` ou aspas no nome.
+2. Adicionar o produto ao carrinho.
+
+Resultado esperado:
+
+- O nome aparece como texto.
+- Nenhum HTML ou script e executado no navegador.
 
 ### Venda com dois itens
 
@@ -262,6 +309,14 @@ Resultado esperado:
 
 - Nenhum erro de sintaxe.
 
+### Teste de CSRF
+
+Enviar um `POST` sem o campo `csrf_token`.
+
+Resultado esperado:
+
+- O sistema retorna erro 403.
+
 ## 12. Testes automaticos
 
 O projeto possui uma suite automatica com testes unitarios e funcionais usando `pytest`.
@@ -292,6 +347,7 @@ Testes unitarios:
 - Venda multi-item baixa estoque e calcula total.
 - Estoque insuficiente bloqueia venda.
 - Emissao de NF e idempotente por venda.
+- Referencias de cobranca diferenciam origem de venda e servico.
 
 Testes funcionais:
 
@@ -302,9 +358,10 @@ Testes funcionais:
 - Cadastro de produto com codigo de barras, venda e cobranca via HTTP.
 - Emissao e visualizacao de NF via HTTP.
 - Registro de servico, cobranca Pix e NF de servico via HTTP.
+- Formularios protegidos por CSRF nos fluxos HTTP.
 
 ### Resultado esperado
 
 ```text
-10 passed
+11 passed
 ```

@@ -50,20 +50,50 @@
   <h2>Produtos cadastrados</h2>
   <div class="form-hint">Para cadastrar com leitor, deixe o cursor em Codigo de barras e bipe o produto. O Enter do leitor avanca para o campo Nome.</div>
   <table>
-    <thead><tr><th>SKU</th><th>Codigo</th><th>Nome</th><th>Tipo</th><th>Preco</th><th>Saldo</th><th>Min.</th></tr></thead>
+    <thead><tr><th>SKU</th><th>Codigo</th><th>Nome</th><th>Tipo</th><th>Categoria</th><th>Fornecedor</th><th>Custo</th><th>Preco</th><th>Saldo</th><th>Min.</th><th>Acao</th></tr></thead>
     <tbody>
       {% for product in products %}
       <tr>
-        <td>{{ product.sku }}</td>
-        <td>{{ product.barcode or "-" }}</td>
-        <td>{{ product.name }}</td>
-        <td>{{ product.kind.value }}</td>
-        <td>R$ {{ "%.2f"|format(product.sale_price) }}</td>
-        <td>{{ product.quantity_on_hand }}</td>
-        <td>{{ product.min_quantity }}</td>
+        <td><input form="product-{{ product.id }}" name="sku" value="{{ product.sku }}" required></td>
+        <td><input form="product-{{ product.id }}" name="barcode" value="{{ product.barcode or '' }}"></td>
+        <td><input form="product-{{ product.id }}" name="name" value="{{ product.name }}" required></td>
+        <td>
+          <select form="product-{{ product.id }}" name="kind">
+            {% for kind in kinds %}
+            <option value="{{ kind.value }}" {% if product.kind == kind %}selected{% endif %}>{{ kind.value }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td>
+          <select form="product-{{ product.id }}" name="category_id">
+            <option value="">Sem categoria</option>
+            {% for category in categories %}
+            <option value="{{ category.id }}" {% if product.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td>
+          <select form="product-{{ product.id }}" name="supplier_id">
+            <option value="">Sem fornecedor</option>
+            {% for supplier in suppliers %}
+            <option value="{{ supplier.id }}" {% if product.supplier_id == supplier.id %}selected{% endif %}>{{ supplier.name }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td><input form="product-{{ product.id }}" name="cost_price" type="number" step="0.01" value="{{ '%.2f'|format(product.cost_price) }}"></td>
+        <td><input form="product-{{ product.id }}" name="sale_price" type="number" step="0.01" value="{{ '%.2f'|format(product.sale_price) }}"></td>
+        <td><input form="product-{{ product.id }}" name="quantity_on_hand" type="number" min="0" value="{{ product.quantity_on_hand }}"></td>
+        <td><input form="product-{{ product.id }}" name="min_quantity" type="number" min="0" value="{{ product.min_quantity }}"></td>
+        <td>
+          <form id="product-{{ product.id }}" method="post" action="/produtos/{{ product.id }}/editar" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="origin_country" value="{{ product.origin_country }}">
+            <button type="submit" class="secondary">Salvar</button>
+          </form>
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="7">Nenhum produto cadastrado.</td></tr>
+      <tr><td colspan="11">Nenhum produto cadastrado.</td></tr>
       {% endfor %}
     </tbody>
   </table>

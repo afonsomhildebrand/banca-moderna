@@ -49,6 +49,8 @@ Recomendacao:
 
 - Gerar valores fortes para `APP_SECRET_KEY`, `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD` e `INITIAL_ADMIN_PASSWORD`.
 - Em producao com HTTPS, usar `SECURE_COOKIES=true`.
+- Definir `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD` antes da primeira subida para criar o administrador inicial.
+- A senha inicial de administrador deve ter pelo menos 10 caracteres e nao pode ser uma senha comum.
 
 ## 4. Subir ambiente
 
@@ -81,6 +83,8 @@ http://localhost:8000
 ```text
 http://localhost:8080
 ```
+
+No `docker-compose.yml` padrao, o Adminer e publicado em `127.0.0.1:8080`, portanto fica acessivel apenas pela propria maquina onde o Docker esta rodando.
 
 Dados:
 
@@ -145,9 +149,10 @@ docker compose exec -T db sh -c 'mysql -ubanca_user -p"$MYSQL_PASSWORD" banca_mo
 
 Para uso em producao real:
 
-- Trocar todas as senhas.
+- Trocar todas as senhas e nao reutilizar os valores de exemplo.
 - Usar `APP_SECRET_KEY` forte.
+- Usar `SECURE_COOKIES=true` atras de HTTPS.
 - Configurar backup automatico.
 - Configurar HTTPS via proxy reverso.
-- Restringir acesso ao Adminer.
+- Remover o Adminer ou manter acesso restrito por localhost, VPN ou proxy autenticado.
 - Avaliar integracao fiscal oficial se houver emissao NF-e/NFC-e.

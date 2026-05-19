@@ -6,7 +6,7 @@ Aplicativo web em Python com MySQL para gestao de banca: produtos editoriais, co
 
 1. Instale Docker Desktop.
 2. Extraia a pasta do pacote em qualquer local do computador.
-3. Confira as variaveis no arquivo `.env`.
+3. Confira as variaveis no arquivo `.env`, principalmente `APP_SECRET_KEY`, `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD`.
 4. Execute um dos comandos abaixo dentro da pasta:
 
 ```bash
@@ -41,6 +41,8 @@ docker compose up --build -d
 
 ## Acesso ao banco pelo Adminer
 
+O Adminer fica publicado somente em `127.0.0.1:8080` no Docker Compose padrao. Acesse a partir da propria maquina onde o sistema esta rodando.
+
 - Sistema: `MySQL`
 - Servidor: `db`
 - Usuario: `banca_user`
@@ -53,6 +55,8 @@ O sistema cria um usuario administrador inicial somente quando `INITIAL_ADMIN_EM
 
 - E-mail: valor de `INITIAL_ADMIN_EMAIL`
 - Senha: valor de `INITIAL_ADMIN_PASSWORD`
+
+Use uma senha forte. Se uma instalacao antiga ainda tiver o administrador inicial com a senha fraca antiga, a aplicacao substitui esse hash pelo valor atual de `INITIAL_ADMIN_PASSWORD` na inicializacao.
 
 Perfis disponiveis:
 
@@ -93,14 +97,14 @@ Ou executar:
 ## Modulos implementados no MVP
 
 - Dashboard com indicadores de vendas, compras e estoque.
-- Cadastro de produtos, clientes e fornecedores.
+- Cadastro e alteracao de produtos, clientes, fornecedores e usuarios.
 - Registro de compras com entrada automatica em estoque.
 - Interface de venda de balcao com busca de itens, leitura de codigo de barras, filtros, carrinho multi-item, desconto, pagamento e baixa automatica em estoque.
 - Emissao de NF interna por venda, com numero, serie, chave interna e tela imprimivel.
 - Registro de servicos concluidos com emissao de NF interna de servico.
 - Cobrancas internas por boleto, Pix, debito e credito para vendas e servicos.
 - Consulta de estoque e movimentacoes.
-- Seed inicial de categorias e usuario administrador.
+- Seed inicial de categorias e, quando configurado no `.env`, usuario administrador.
 
 ## Observacoes
 

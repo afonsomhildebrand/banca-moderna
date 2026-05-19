@@ -11,7 +11,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Nome<input name="name" required></label>
     <label>E-mail<input name="email" type="email" required></label>
-    <label>Senha<input name="password" type="password" minlength="6" required></label>
+    <label>Senha<input name="password" type="password" minlength="10" required></label>
     <label>Perfil
       <select name="role">
         {% for role, label in roles.items() %}
@@ -38,15 +38,26 @@
 <section class="panel">
   <h2>Usuarios cadastrados</h2>
   <table>
-    <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th><th>Acao</th></tr></thead>
+    <thead><tr><th>Nome</th><th>E-mail</th><th>Nova senha</th><th>Perfil</th><th>Status</th><th>Acoes</th></tr></thead>
     <tbody>
       {% for user in users %}
       <tr>
-        <td>{{ user.name }}</td>
-        <td>{{ user.email }}</td>
-        <td>{{ roles.get(user.role, user.role) }}</td>
-        <td>{% if user.active %}<span class="tag ok">ativo</span>{% else %}<span class="tag danger">inativo</span>{% endif %}</td>
+        <td><input form="user-{{ user.id }}" name="name" value="{{ user.name }}" required></td>
+        <td><input form="user-{{ user.id }}" name="email" type="email" value="{{ user.email }}" required></td>
+        <td><input form="user-{{ user.id }}" name="password" type="password" minlength="10" placeholder="Manter atual"></td>
         <td>
+          <select form="user-{{ user.id }}" name="role">
+            {% for role, label in roles.items() %}
+            <option value="{{ role }}" {% if user.role == role %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td><label class="checkline"><input form="user-{{ user.id }}" name="active" type="checkbox" {% if user.active %}checked{% endif %} {% if user.id == current_user.id %}disabled{% endif %}> Ativo</label></td>
+        <td>
+          <form id="user-{{ user.id }}" method="post" action="/usuarios/{{ user.id }}/editar" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="secondary">Salvar</button>
+          </form>
           {% if user.id != current_user.id %}
           <form method="post" action="/usuarios/{{ user.id }}/alternar-status" class="inline-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -58,7 +69,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="5">Nenhum usuario cadastrado.</td></tr>
+      <tr><td colspan="6">Nenhum usuario cadastrado.</td></tr>
       {% endfor %}
     </tbody>
   </table>

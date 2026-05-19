@@ -44,8 +44,10 @@ Regras:
 
 - Usuario inativo nao acessa.
 - Senha invalida bloqueia o login.
+- Muitas tentativas invalidas para o mesmo e-mail/IP sao bloqueadas temporariamente.
 - Administrador entra no dashboard.
 - Funcionario entra diretamente na tela de vendas.
+- Formularios usam token CSRF para reduzir risco de envio nao autorizado por outro site.
 
 ### Dashboard
 
@@ -66,7 +68,7 @@ Mostra:
 
 Disponivel somente para administrador.
 
-Permite cadastrar e consultar produtos da banca.
+Permite cadastrar, consultar e alterar produtos da banca.
 
 Campos principais:
 
@@ -99,7 +101,7 @@ Tipos de produto:
 
 Disponivel somente para administrador.
 
-Permite cadastrar clientes para vendas identificadas.
+Permite cadastrar, consultar e alterar clientes para vendas identificadas.
 
 Campos:
 
@@ -113,7 +115,7 @@ Campos:
 
 Disponivel somente para administrador.
 
-Permite cadastrar fornecedores nacionais e internacionais.
+Permite cadastrar, consultar e alterar fornecedores nacionais e internacionais.
 
 Campos:
 
@@ -222,11 +224,14 @@ Disponivel somente para administrador.
 Permite:
 
 - Cadastrar usuario.
+- Alterar nome, e-mail, perfil e senha.
 - Definir perfil `Administrador` ou `Funcionario`.
 - Ativar usuario.
 - Desativar usuario.
 
 O administrador nao pode desativar o proprio usuario.
+Ao editar o proprio usuario, o sistema mantem a conta ativa para evitar bloqueio acidental da sessao em uso.
+Senhas de usuarios devem ter pelo menos 10 caracteres e nao podem estar na lista de senhas comuns bloqueadas.
 
 ### NF interna
 

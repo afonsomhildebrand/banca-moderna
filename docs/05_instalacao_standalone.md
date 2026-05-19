@@ -20,7 +20,7 @@ O pacote standalone contem:
 - Acesso a internet na primeira instalacao para baixar imagens Docker.
 - Portas livres:
   - `8000` para o aplicativo.
-  - `8080` para o Adminer.
+  - `8080` para o Adminer local.
 
 ## 3. Arquivo do pacote
 
@@ -53,6 +53,18 @@ app/
 docs/
 ```
 
+5. Abra o arquivo `.env` e defina valores fortes para:
+
+```text
+APP_SECRET_KEY
+MYSQL_PASSWORD
+MYSQL_ROOT_PASSWORD
+INITIAL_ADMIN_EMAIL
+INITIAL_ADMIN_PASSWORD
+```
+
+`INITIAL_ADMIN_PASSWORD` deve ter pelo menos 10 caracteres e nao deve ser uma senha comum.
+
 ## 5. Iniciar pelo Windows
 
 Clique duas vezes em:
@@ -80,6 +92,8 @@ Adminer:
 ```text
 http://localhost:8080
 ```
+
+O Adminer fica restrito a propria maquina local no Docker Compose padrao.
 
 ## 7. Login inicial
 
@@ -155,7 +169,7 @@ Altere:
 
 ```yaml
 ports:
-  - "8081:8080"
+  - "127.0.0.1:8081:8080"
 ```
 
 Depois acesse:

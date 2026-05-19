@@ -198,6 +198,46 @@ def template_context(request: Request, current_user: User, **extra):
     return context
 
 
+def products_context(request: Request, current_user: User, db: Session, error: str | None = None):
+    return template_context(
+        request,
+        current_user,
+        products=db.query(Product).order_by(Product.name).all(),
+        categories=db.query(Category).order_by(Category.name).all(),
+        suppliers=db.query(Supplier).order_by(Supplier.name).all(),
+        kinds=ProductKind,
+        error=error,
+    )
+
+
+def customers_context(request: Request, current_user: User, db: Session, error: str | None = None):
+    return template_context(
+        request,
+        current_user,
+        customers=db.query(Customer).order_by(Customer.name).all(),
+        error=error,
+    )
+
+
+def suppliers_context(request: Request, current_user: User, db: Session, error: str | None = None):
+    return template_context(
+        request,
+        current_user,
+        suppliers=db.query(Supplier).order_by(Supplier.name).all(),
+        error=error,
+    )
+
+
+def users_context(request: Request, current_user: User, db: Session, error: str | None = None):
+    return template_context(
+        request,
+        current_user,
+        users=db.query(User).order_by(User.name).all(),
+        roles=ROLE_LABELS,
+        error=error,
+    )
+
+
 @app.get("/login")
 def login_form(request: Request, db: Session = Depends(get_db)):
     user_id = request.session.get("user_id")
@@ -285,20 +325,9 @@ def products(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("products.view")),
 ):
-    rows = db.query(Product).order_by(Product.name).all()
-    categories = db.query(Category).order_by(Category.name).all()
-    suppliers = db.query(Supplier).order_by(Supplier.name).all()
     return templates.TemplateResponse(
         "products.html",
-        template_context(
-            request,
-            current_user,
-            products=rows,
-            categories=categories,
-            suppliers=suppliers,
-            kinds=ProductKind,
-            error=None,
-        ),
+        products_context(request, current_user, db),
     )
 
 
@@ -362,14 +391,62 @@ def create_product(
     return redirect("/produtos")
 
 
+@app.post("/produtos/{product_id}/editar")
+def update_product(
+    request: Request,
+    product_id: int,
+    sku: str = Form(...),
+    name: str = Form(...),
+    kind: ProductKind = Form(ProductKind.other),
+    sale_price: str = Form("0"),
+    cost_price: str = Form("0"),
+    min_quantity: int = Form(0),
+    quantity_on_hand: int = Form(0),
+    category_id: str | None = Form(None),
+    supplier_id: str | None = Form(None),
+    barcode: str | None = Form(None),
+    origin_country: str = Form("Brasil"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("products.create")),
+):
+    try:
+        product = db.get(Product, product_id)
+        if product is None:
+            raise StockError("Produto nao encontrado.")
+        if min_quantity < 0 or quantity_on_hand < 0:
+            raise StockError("Saldo e estoque minimo nao podem ser negativos.")
+        product.sku = sku.strip()
+        product.barcode = barcode.strip() if barcode else None
+        product.name = name.strip()
+        product.kind = kind
+        product.sale_price = money(sale_price)
+        product.cost_price = money(cost_price)
+        product.min_quantity = min_quantity
+        product.quantity_on_hand = quantity_on_hand
+        product.category_id = int(category_id) if category_id else None
+        product.supplier_id = int(supplier_id) if supplier_id else None
+        product.origin_country = origin_country.strip() or "Brasil"
+        if not product.sku or not product.name:
+            raise StockError("SKU e nome sao obrigatorios.")
+        if product.sale_price < 0 or product.cost_price < 0:
+            raise StockError("Precos nao podem ser negativos.")
+        commit_or_error(db, "Ja existe produto com este SKU ou codigo de barras.")
+    except (StockError, ValueError) as exc:
+        return templates.TemplateResponse(
+            "products.html",
+            products_context(request, current_user, db, rollback_error(db, exc)),
+            status_code=400,
+        )
+    return redirect("/produtos")
+
+
 @app.get("/clientes")
 def customers(
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("customers.view")),
 ):
-    rows = db.query(Customer).order_by(Customer.name).all()
-    return templates.TemplateResponse("customers.html", template_context(request, current_user, customers=rows))
+    return templates.TemplateResponse("customers.html", customers_context(request, current_user, db))
 
 
 @app.post("/clientes")
@@ -390,14 +467,44 @@ def create_customer(
     return redirect("/clientes")
 
 
+@app.post("/clientes/{customer_id}/editar")
+def update_customer(
+    request: Request,
+    customer_id: int,
+    name: str = Form(...),
+    phone: str | None = Form(None),
+    email: str | None = Form(None),
+    document: str | None = Form(None),
+    notes: str | None = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("customers.create")),
+):
+    customer = db.get(Customer, customer_id)
+    if customer is None:
+        raise HTTPException(status_code=404, detail="Cliente nao encontrado.")
+    customer_name = name.strip()
+    if not customer_name:
+        return templates.TemplateResponse(
+            "customers.html",
+            customers_context(request, current_user, db, "Nome do cliente e obrigatorio."),
+            status_code=400,
+        )
+    customer.name = customer_name
+    customer.phone = phone
+    customer.email = email
+    customer.document = document
+    customer.notes = notes
+    db.commit()
+    return redirect("/clientes")
+
+
 @app.get("/fornecedores")
 def suppliers(
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("suppliers.view")),
 ):
-    rows = db.query(Supplier).order_by(Supplier.name).all()
-    return templates.TemplateResponse("suppliers.html", template_context(request, current_user, suppliers=rows))
+    return templates.TemplateResponse("suppliers.html", suppliers_context(request, current_user, db))
 
 
 @app.post("/fornecedores")
@@ -424,6 +531,39 @@ def create_supplier(
             document=document,
         )
     )
+    db.commit()
+    return redirect("/fornecedores")
+
+
+@app.post("/fornecedores/{supplier_id}/editar")
+def update_supplier(
+    request: Request,
+    supplier_id: int,
+    name: str = Form(...),
+    country: str = Form("Brasil"),
+    currency: str = Form("BRL"),
+    phone: str | None = Form(None),
+    email: str | None = Form(None),
+    document: str | None = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("suppliers.create")),
+):
+    supplier = db.get(Supplier, supplier_id)
+    if supplier is None:
+        raise HTTPException(status_code=404, detail="Fornecedor nao encontrado.")
+    supplier_name = name.strip()
+    if not supplier_name:
+        return templates.TemplateResponse(
+            "suppliers.html",
+            suppliers_context(request, current_user, db, "Nome do fornecedor e obrigatorio."),
+            status_code=400,
+        )
+    supplier.name = supplier_name
+    supplier.country = country.strip() or "Brasil"
+    supplier.currency = currency.strip().upper() or "BRL"
+    supplier.phone = phone
+    supplier.email = email
+    supplier.document = document
     db.commit()
     return redirect("/fornecedores")
 
@@ -711,10 +851,9 @@ def users(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("users.manage")),
 ):
-    rows = db.query(User).order_by(User.name).all()
     return templates.TemplateResponse(
         "users.html",
-        template_context(request, current_user, users=rows, roles=ROLE_LABELS, error=None),
+        users_context(request, current_user, db),
     )
 
 
@@ -775,6 +914,63 @@ def create_user(
                 roles=ROLE_LABELS,
                 error="Ja existe um usuario com este e-mail.",
             ),
+            status_code=400,
+        )
+    return redirect("/usuarios")
+
+
+@app.post("/usuarios/{user_id}/editar")
+def update_user(
+    request: Request,
+    user_id: int,
+    name: str = Form(...),
+    email: str = Form(...),
+    password: str | None = Form(None),
+    role: str = Form(...),
+    active: str | None = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("users.manage")),
+):
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="Usuario nao encontrado.")
+    normalized_email = email.strip().lower()
+    if role not in ROLE_LABELS:
+        return templates.TemplateResponse(
+            "users.html",
+            users_context(request, current_user, db, "Perfil de acesso invalido."),
+            status_code=400,
+        )
+    if not name.strip():
+        return templates.TemplateResponse(
+            "users.html",
+            users_context(request, current_user, db, "Nome e obrigatorio."),
+            status_code=400,
+        )
+    if password:
+        try:
+            validate_password_strength(password)
+        except ValueError as exc:
+            return templates.TemplateResponse(
+                "users.html",
+                users_context(request, current_user, db, str(exc)),
+                status_code=400,
+            )
+        user.password_hash = hash_password(password)
+    user.name = name.strip()
+    user.email = normalized_email
+    if user.id != current_user.id:
+        user.role = role
+        user.active = active == "on"
+    else:
+        user.active = True
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return templates.TemplateResponse(
+            "users.html",
+            users_context(request, current_user, db, "Ja existe um usuario com este e-mail."),
             status_code=400,
         )
     return redirect("/usuarios")
