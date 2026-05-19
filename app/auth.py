@@ -27,6 +27,7 @@ MENU_ITEMS = [
     {"label": "Fornecedores", "href": "/fornecedores", "permission": "suppliers.view"},
     {"label": "Compras", "href": "/compras", "permission": "purchases.view"},
     {"label": "Vendas", "href": "/vendas", "permission": "sales.view"},
+    {"label": "Servicos", "href": "/servicos", "permission": "services.view"},
     {"label": "Estoque", "href": "/estoque", "permission": "stock.view"},
     {"label": "Usuarios", "href": "/usuarios", "permission": "users.manage"},
 ]

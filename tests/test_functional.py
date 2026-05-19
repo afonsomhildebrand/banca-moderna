@@ -1,4 +1,6 @@
-from app.models import Product, ProductKind, User
+from decimal import Decimal
+
+from app.models import PaymentCharge, Product, ProductKind, ServiceOrder, User
 from app.security import hash_password
 
 
@@ -6,13 +8,13 @@ def login(client, email: str = "admin@bancamoderna.local", password: str = "admi
     return client.post("/login", data={"email": email, "password": password}, follow_redirects=False)
 
 
-def post_sale(client, product_id: int, quantity: int, unit_price: str, discount: str = "0"):
+def post_sale(client, product_id: int, quantity: int, unit_price: str, discount: str = "0", payment_method: str = "pix"):
     body = (
         f"product_id={product_id}"
         f"&quantity={quantity}"
         f"&unit_price={unit_price}"
         f"&discount={discount}"
-        "&payment_method=pix"
+        f"&payment_method={payment_method}"
         "&customer_id="
         "&employee_name=Admin"
     )
@@ -33,6 +35,7 @@ def test_login_admin_sees_full_menu(client):
     assert "Dashboard" in dashboard.text
     assert "Produtos" in dashboard.text
     assert "Usuarios" in dashboard.text
+    assert "Servicos" in dashboard.text
 
 
 def test_funcionario_only_accesses_sales(client, db_session):
@@ -55,8 +58,10 @@ def test_funcionario_only_accesses_sales(client, db_session):
     assert "Vendas" in sales.text
     assert 'href="/produtos"' not in sales.text
     assert 'href="/usuarios"' not in sales.text
+    assert 'href="/servicos"' not in sales.text
 
     assert client.get("/produtos").status_code == 403
+    assert client.get("/servicos").status_code == 403
     assert client.get("/").status_code == 403
 
 
@@ -95,12 +100,17 @@ def test_admin_can_create_product_and_make_sale(client, db_session):
     assert sales_page.status_code == 200
     assert 'id="barcodeScanner"' in sales_page.text
     assert 'data-barcode="7891234567890"' in sales_page.text
+    assert 'value="boleto"' in sales_page.text
+    assert 'value="debito"' in sales_page.text
+    assert 'value="credito"' in sales_page.text
 
-    sale_response = post_sale(client, product.id, 2, "12.00", "1.00")
+    sale_response = post_sale(client, product.id, 2, "12.00", "1.00", payment_method="boleto")
     assert sale_response.status_code == 303
 
     db_session.refresh(product)
     assert product.quantity_on_hand == 2
+    charge = db_session.query(PaymentCharge).filter(PaymentCharge.method == "boleto").one()
+    assert charge.digitable_line
 
 
 def test_issue_invoice_from_sale_history(client, db_session):
@@ -132,3 +142,44 @@ def test_issue_invoice_from_sale_history(client, db_session):
     assert invoice_page.status_code == 200
     assert "Nota Fiscal" in invoice_page.text
     assert "Produto NF" in invoice_page.text
+
+
+def test_admin_can_register_service_issue_invoice_and_charge(client, db_session):
+    login(client)
+
+    page = client.get("/servicos")
+    assert page.status_code == 200
+    assert "Servicos Concluidos" in page.text
+
+    response = client.post(
+        "/servicos",
+        data={
+            "description": "Plastificacao de documento",
+            "amount": "35.90",
+            "payment_method": "pix",
+            "customer_id": "",
+            "employee_name": "Admin",
+            "due_date": "2026-05-20",
+            "card_brand": "",
+            "installments": "1",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+    service = db_session.query(ServiceOrder).filter(ServiceOrder.description == "Plastificacao de documento").one()
+    assert service.amount == Decimal("35.90")
+    assert service.charges[0].pix_copy_paste
+
+    charge_page = client.get(f"/cobrancas/{service.charges[0].id}")
+    assert charge_page.status_code == 200
+    assert "Pix copia e cola" in charge_page.text
+
+    invoice_response = client.post(f"/servicos/{service.id}/emitir-nf", follow_redirects=False)
+    assert invoice_response.status_code == 303
+    assert invoice_response.headers["location"].startswith("/notas-servico/")
+
+    invoice_page = client.get(invoice_response.headers["location"])
+    assert invoice_page.status_code == 200
+    assert "Nota Fiscal de Servico" in invoice_page.text
+    assert "Plastificacao de documento" in invoice_page.text

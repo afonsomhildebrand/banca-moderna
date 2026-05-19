@@ -1,6 +1,6 @@
 # Banca Moderna
 
-Aplicativo web em Python com MySQL para gestao de banca: produtos editoriais, colecionaveis, albuns, figurinhas, jogos, comidas, bebidas, doces, chicletes, compras, vendas, estoque e leitura de codigo de barras.
+Aplicativo web em Python com MySQL para gestao de banca: produtos editoriais, colecionaveis, albuns, figurinhas, jogos, comidas, bebidas, doces, chicletes, compras, vendas, servicos, estoque, leitura de codigo de barras, notas internas e cobrancas.
 
 ## Como rodar em modo standalone
 
@@ -97,6 +97,8 @@ Ou executar:
 - Registro de compras com entrada automatica em estoque.
 - Interface de venda de balcao com busca de itens, leitura de codigo de barras, filtros, carrinho multi-item, desconto, pagamento e baixa automatica em estoque.
 - Emissao de NF interna por venda, com numero, serie, chave interna e tela imprimivel.
+- Registro de servicos concluidos com emissao de NF interna de servico.
+- Cobrancas internas por boleto, Pix, debito e credito para vendas e servicos.
 - Consulta de estoque e movimentacoes.
 - Seed inicial de categorias e usuario administrador.
 

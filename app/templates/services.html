@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Servicos - Banca Moderna{% endblock %}
+{% block heading %}Servicos Concluidos{% endblock %}
+{% block subheading %}Registre servicos, emita NF interna e gere cobrancas por boleto, Pix, debito ou credito.{% endblock %}
+
+{% block content %}
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+
+{% if can("services.create") %}
+<section class="panel">
+  <h2>Novo servico concluido</h2>
+  <form method="post" class="form-grid">
+    <label class="wide">Descricao do servico<input name="description" required placeholder="Ex.: Encadernacao, plastificacao, assinatura, entrega"></label>
+    <label>Cliente
+      <select name="customer_id">
+        <option value="">Cliente nao identificado</option>
+        {% for customer in customers %}
+        <option value="{{ customer.id }}">{{ customer.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Responsavel<input name="employee_name" value="{{ current_user.name }}"></label>
+    <label>Valor<input name="amount" type="number" min="0.01" step="0.01" required></label>
+    <label>Pagamento
+      <select name="payment_method">
+        <option value="pix">Pix</option>
+        <option value="boleto">Boleto</option>
+        <option value="debito">Debito</option>
+        <option value="credito">Credito</option>
+        <option value="dinheiro">Dinheiro</option>
+      </select>
+    </label>
+    <label>Vencimento<input name="due_date" type="date"></label>
+    <label>Bandeira<input name="card_brand" placeholder="Visa, Mastercard..."></label>
+    <label>Parcelas<input name="installments" type="number" min="1" value="1"></label>
+    <button type="submit">Registrar servico</button>
+  </form>
+  <p class="form-hint">Boletos, Pix e cartoes sao gerados como cobrancas internas para controle. Para transacao bancaria real, integre a um banco, PSP ou adquirente.</p>
+</section>
+{% endif %}
+
+<section class="panel">
+  <div class="history-header">
+    <h2>Servicos registrados</h2>
+    <span>{{ services|length }} registro(s)</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Cliente</th><th>Servico</th><th>Pagamento</th><th>Valor</th><th>Cobranca</th><th>NF Servico</th><th>Data</th></tr></thead>
+      <tbody>
+        {% for service in services %}
+        <tr>
+          <td>{{ service.id }}</td>
+          <td>{{ service.customer.name if service.customer else "Nao identificado" }}</td>
+          <td>{{ service.description }}</td>
+          <td>{{ service.payment_method }}</td>
+          <td>R$ {{ "%.2f"|format(service.amount) }}</td>
+          <td>
+            {% if service.charges %}
+            <a class="table-action" href="/cobrancas/{{ service.charges[-1].id }}">{{ service.charges[-1].reference }}</a>
+            {% else %}
+            -
+            {% endif %}
+          </td>
+          <td>
+            {% if service.invoice %}
+            <a class="table-action" href="/notas-servico/{{ service.invoice.id }}">NFS {{ service.invoice.series }}-{{ "%06d"|format(service.invoice.number) }}</a>
+            {% elif can("services.create") %}
+            <form method="post" action="/servicos/{{ service.id }}/emitir-nf" class="inline-form">
+              <button type="submit" class="secondary">Emitir NF</button>
+            </form>
+            {% else %}
+            Pendente
+            {% endif %}
+          </td>
+          <td>{{ service.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8">Nenhum servico registrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

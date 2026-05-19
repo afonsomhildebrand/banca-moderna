@@ -3,11 +3,13 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.models import (
+    PaymentCharge,
     Product,
     Purchase,
     PurchaseItem,
     Sale,
     SaleItem,
+    ServiceOrder,
     StockMovement,
     StockMovementType,
 )
@@ -17,10 +19,95 @@ class StockError(ValueError):
     pass
 
 
+CHARGE_METHODS = {"boleto", "pix", "debito", "credito"}
+
+
 def money(value: str | int | float | Decimal | None) -> Decimal:
     if value in (None, ""):
         return Decimal("0")
     return Decimal(str(value)).quantize(Decimal("0.01"))
+
+
+def create_payment_charge(
+    db: Session,
+    *,
+    amount: Decimal,
+    method: str,
+    sale: Sale | None = None,
+    service_order: ServiceOrder | None = None,
+    due_date=None,
+    card_brand: str | None = None,
+    installments: int = 1,
+) -> PaymentCharge | None:
+    if method not in CHARGE_METHODS:
+        return None
+
+    prefix = {"boleto": "BOL", "pix": "PIX", "debito": "DEB", "credito": "CRE"}[method]
+    reference_id = sale.id if sale else service_order.id if service_order else 0
+    reference = f"{prefix}-{reference_id:06d}"
+    charge = PaymentCharge(
+        sale=sale,
+        service_order=service_order,
+        method=method,
+        amount=money(amount),
+        due_date=due_date,
+        reference=reference,
+        card_brand=card_brand.strip() if card_brand else None,
+        installments=max(1, installments or 1),
+    )
+
+    if method == "boleto":
+        charge.digitable_line = f"34191.79001 01043.{reference_id:05d} 91020.150008 8 {reference_id:014d}"
+        charge.notes = "Boleto interno para controle de cobranca. Nao registrado em banco."
+    elif method == "pix":
+        charge.pix_copy_paste = f"00020126330014BR.GOV.BCB.PIX0111BANCA-MOD{reference_id:06d}520400005303986540{charge.amount:.2f}5802BR5920BANCA MODERNA6009SAO PAULO62070503***6304"
+        charge.notes = "Copia e cola Pix interno para controle de cobranca. Integre a um PSP para cobranca bancaria real."
+    elif method == "debito":
+        charge.notes = "Cobranca de debito registrada para conciliacao da maquininha."
+    elif method == "credito":
+        charge.notes = f"Cobranca de credito em {charge.installments} parcela(s) para conciliacao da maquininha."
+
+    db.add(charge)
+    return charge
+
+
+def register_completed_service(
+    db: Session,
+    *,
+    description: str,
+    amount: Decimal,
+    payment_method: str,
+    customer_id: int | None = None,
+    employee_name: str | None = None,
+    due_date=None,
+    card_brand: str | None = None,
+    installments: int = 1,
+) -> ServiceOrder:
+    total = money(amount)
+    if total <= 0:
+        raise StockError("O valor do servico deve ser maior que zero.")
+
+    service_order = ServiceOrder(
+        customer_id=customer_id,
+        description=description.strip(),
+        employee_name=employee_name,
+        amount=total,
+        payment_method=payment_method,
+    )
+    db.add(service_order)
+    db.flush()
+    create_payment_charge(
+        db,
+        amount=total,
+        method=payment_method,
+        service_order=service_order,
+        due_date=due_date,
+        card_brand=card_brand,
+        installments=installments,
+    )
+    db.commit()
+    db.refresh(service_order)
+    return service_order
 
 
 def register_purchase(

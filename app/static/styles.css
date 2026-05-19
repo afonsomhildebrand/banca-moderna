@@ -739,7 +739,23 @@ th {
   padding: 12px;
 }
 
+.charge-box {
+  background: #f7f9fc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  margin-bottom: 18px;
+  padding: 12px;
+  word-break: break-word;
+}
+
 .invoice-key span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.charge-box span {
   color: var(--muted);
   font-size: 12px;
 }

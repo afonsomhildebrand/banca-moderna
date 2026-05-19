@@ -40,6 +40,18 @@ class PurchaseStatus(str, Enum):
     canceled = "canceled"
 
 
+class ServiceStatus(str, Enum):
+    open = "open"
+    completed = "completed"
+    canceled = "canceled"
+
+
+class ChargeStatus(str, Enum):
+    pending = "pending"
+    paid = "paid"
+    canceled = "canceled"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -75,6 +87,7 @@ class Customer(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     sales: Mapped[list["Sale"]] = relationship(back_populates="customer")
+    service_orders: Mapped[list["ServiceOrder"]] = relationship(back_populates="customer")
 
 
 class Supplier(Base):
@@ -186,6 +199,7 @@ class Sale(Base):
     customer: Mapped[Customer | None] = relationship(back_populates="sales")
     items: Mapped[list["SaleItem"]] = relationship(back_populates="sale", cascade="all, delete-orphan")
     invoice: Mapped["FiscalInvoice | None"] = relationship(back_populates="sale")
+    charges: Mapped[list["PaymentCharge"]] = relationship(back_populates="sale", cascade="all, delete-orphan")
 
 
 class SaleItem(Base):
@@ -234,3 +248,60 @@ class FiscalInvoice(Base):
     issued_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     sale: Mapped[Sale] = relationship(back_populates="invoice")
+
+
+class ServiceOrder(Base):
+    __tablename__ = "service_orders"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"))
+    description: Mapped[str] = mapped_column(String(220))
+    employee_name: Mapped[str | None] = mapped_column(String(120))
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
+    payment_method: Mapped[str] = mapped_column(String(40), default="pix")
+    status: Mapped[ServiceStatus] = mapped_column(SAEnum(ServiceStatus), default=ServiceStatus.completed)
+    completed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    customer: Mapped[Customer | None] = relationship(back_populates="service_orders")
+    invoice: Mapped["ServiceInvoice | None"] = relationship(back_populates="service_order")
+    charges: Mapped[list["PaymentCharge"]] = relationship(back_populates="service_order", cascade="all, delete-orphan")
+
+
+class ServiceInvoice(Base):
+    __tablename__ = "service_invoices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    service_order_id: Mapped[int] = mapped_column(ForeignKey("service_orders.id"), unique=True, index=True)
+    number: Mapped[int] = mapped_column(index=True)
+    series: Mapped[str] = mapped_column(String(12), default="S")
+    access_key: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(40), default="emitida")
+    issuer_name: Mapped[str] = mapped_column(String(160), default="Banca Moderna")
+    issuer_document: Mapped[str | None] = mapped_column(String(40))
+    notes: Mapped[str | None] = mapped_column(Text)
+    issued_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    service_order: Mapped[ServiceOrder] = relationship(back_populates="invoice")
+
+
+class PaymentCharge(Base):
+    __tablename__ = "payment_charges"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sale_id: Mapped[int | None] = mapped_column(ForeignKey("sales.id"), index=True)
+    service_order_id: Mapped[int | None] = mapped_column(ForeignKey("service_orders.id"), index=True)
+    method: Mapped[str] = mapped_column(String(40), index=True)
+    status: Mapped[ChargeStatus] = mapped_column(SAEnum(ChargeStatus), default=ChargeStatus.pending)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
+    due_date: Mapped[date | None] = mapped_column(Date)
+    reference: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    digitable_line: Mapped[str | None] = mapped_column(String(160))
+    pix_copy_paste: Mapped[str | None] = mapped_column(Text)
+    card_brand: Mapped[str | None] = mapped_column(String(40))
+    installments: Mapped[int] = mapped_column(default=1)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    sale: Mapped[Sale | None] = relationship(back_populates="charges")
+    service_order: Mapped[ServiceOrder | None] = relationship(back_populates="charges")

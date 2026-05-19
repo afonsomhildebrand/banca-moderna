@@ -86,6 +86,7 @@ Validar acesso a:
 - Fornecedores.
 - Compras.
 - Vendas.
+- Servicos.
 - Estoque.
 - Usuarios.
 
@@ -180,7 +181,42 @@ Resultado esperado:
 - Sistema bloqueia a venda.
 - Estoque nao e alterado.
 
-## 8. Testes de NF interna
+### Venda com cobranca
+
+1. Registrar venda com forma `boleto`, `pix`, `debito` ou `credito`.
+
+Resultado esperado:
+
+- Venda aparece no historico.
+- Link de cobranca aparece na coluna `Cobranca`.
+- Pagina da cobranca abre com dados da forma escolhida.
+
+## 8. Testes de servicos
+
+### Registrar servico concluido
+
+1. Entrar como administrador.
+2. Acessar `Servicos`.
+3. Registrar servico com descricao, valor e pagamento Pix.
+
+Resultado esperado:
+
+- Servico aparece no historico.
+- Cobranca Pix e criada.
+- Link da cobranca abre a tela de Pix copia e cola.
+
+### Emitir NF de servico
+
+1. Criar ou localizar um servico.
+2. Clicar em `Emitir NF`.
+
+Resultado esperado:
+
+- NF interna de servico e criada.
+- Pagina `/notas-servico/{id}` abre.
+- NF mostra numero, serie, chave interna, descricao e valor.
+
+## 9. Testes de NF interna
 
 ### Emitir NF de venda
 
@@ -204,7 +240,7 @@ Resultado esperado:
 - Sistema nao duplica NF.
 - Link abre a NF ja existente.
 
-## 9. Teste de impressao
+## 10. Teste de impressao
 
 1. Abrir uma NF.
 2. Clicar em `Imprimir`.
@@ -214,7 +250,7 @@ Resultado esperado:
 - Navegador abre janela de impressao.
 - Layout de impressao nao exibe menu lateral.
 
-## 10. Testes de regressao rapida
+## 11. Testes de regressao rapida
 
 Executar:
 
@@ -226,7 +262,7 @@ Resultado esperado:
 
 - Nenhum erro de sintaxe.
 
-## 11. Testes automaticos
+## 12. Testes automaticos
 
 O projeto possui uma suite automatica com testes unitarios e funcionais usando `pytest`.
 
@@ -263,11 +299,12 @@ Testes funcionais:
 - Menu completo para administrador.
 - Funcionario acessa somente Vendas.
 - Rotas protegidas exigem login.
-- Cadastro de produto com codigo de barras e venda via HTTP.
+- Cadastro de produto com codigo de barras, venda e cobranca via HTTP.
 - Emissao e visualizacao de NF via HTTP.
+- Registro de servico, cobranca Pix e NF de servico via HTTP.
 
 ### Resultado esperado
 
 ```text
-9 passed
+10 passed
 ```

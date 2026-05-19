@@ -82,14 +82,42 @@ Administrador ou funcionario.
 6. Informe cliente, se houver.
 7. Informe vendedor.
 8. Informe desconto, se houver.
-9. Escolha forma de pagamento.
+9. Escolha forma de pagamento: dinheiro, Pix, boleto, debito, credito, fiado ou vale.
 10. Clique em `Finalizar venda`.
 
 O sistema baixa automaticamente o estoque dos produtos vendidos.
 
 Leitores USB que funcionam como teclado nao precisam de configuracao extra. Deixe o cursor no campo `Leitor de codigo de barras`, bipe o produto e o item sera adicionado ao carrinho quando o leitor enviar Enter.
 
-## 8. Emitir NF interna
+Quando a venda for Pix, boleto, debito ou credito, o sistema gera uma cobranca interna. O link da cobranca aparece no historico da venda.
+
+## 8. Registrar servico concluido
+
+Somente administrador.
+
+1. Acesse `Servicos`.
+2. Informe a descricao do servico.
+3. Informe cliente, se houver.
+4. Informe responsavel.
+5. Informe valor.
+6. Escolha pagamento: Pix, boleto, debito, credito ou dinheiro.
+7. Informe vencimento, bandeira ou parcelas quando aplicavel.
+8. Clique em `Registrar servico`.
+
+O sistema registra o servico como concluido. Para Pix, boleto, debito ou credito, uma cobranca interna fica disponivel no historico.
+
+## 9. Abrir cobranca
+
+Administrador ou funcionario quando a cobranca for de venda; administrador quando for de servico.
+
+1. Acesse o historico de `Vendas` ou `Servicos`.
+2. Clique no link da cobranca.
+3. Verifique boleto, Pix copia e cola ou dados de conciliacao de cartao.
+4. Clique em `Imprimir`, se necessario.
+
+Boletos, Pix e cartoes sao controles internos. Para cobranca bancaria real, integre o sistema a banco, PSP Pix ou adquirente.
+
+## 10. Emitir NF interna
 
 Administrador ou funcionario.
 
@@ -101,7 +129,14 @@ Administrador ou funcionario.
 
 Se a NF ja tiver sido emitida, a tela exibira o link da NF existente.
 
-## 9. Consultar estoque
+Para emitir NF interna de servico:
+
+1. Acesse `Servicos`.
+2. Localize o servico concluido.
+3. Clique em `Emitir NF`.
+4. O sistema abrira a pagina da NF de servico.
+
+## 11. Consultar estoque
 
 Somente administrador.
 
@@ -110,6 +145,6 @@ Somente administrador.
 3. Verifique status baixo ou ok.
 4. Consulte movimentacoes.
 
-## 10. Sair do sistema
+## 12. Sair do sistema
 
 Clique em `Sair` no menu lateral.

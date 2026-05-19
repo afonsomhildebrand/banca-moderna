@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
@@ -12,10 +13,24 @@ from app.auth import ROLE_LABELS, get_current_user, has_permission, require_perm
 from app.bootstrap import seed_database
 from app.config import get_settings
 from app.database import Base, engine, get_db
-from app.invoices import issue_invoice
-from app.models import Category, Customer, Product, ProductKind, Purchase, Sale, StockMovement, Supplier, User
+from app.invoices import issue_invoice, issue_service_invoice
+from app.models import (
+    Category,
+    Customer,
+    FiscalInvoice,
+    PaymentCharge,
+    Product,
+    ProductKind,
+    Purchase,
+    Sale,
+    ServiceInvoice,
+    ServiceOrder,
+    StockMovement,
+    Supplier,
+    User,
+)
 from app.security import hash_password, verify_password
-from app.services import StockError, money, register_purchase, register_sale_items
+from app.services import StockError, create_payment_charge, money, register_completed_service, register_purchase, register_sale_items
 
 
 app = FastAPI(title="Banca Moderna")
@@ -33,6 +48,12 @@ def startup() -> None:
 
 def redirect(path: str) -> RedirectResponse:
     return RedirectResponse(path, status_code=303)
+
+
+def parse_optional_date(value: str | None) -> date | None:
+    if not value:
+        return None
+    return date.fromisoformat(value)
 
 
 def template_context(request: Request, current_user: User, **extra):
@@ -332,7 +353,7 @@ def create_sale(
             {"product_id": pid, "quantity": qty, "unit_price": price}
             for pid, qty, price in zip(product_id, quantity, unit_price, strict=True)
         ]
-        register_sale_items(
+        sale = register_sale_items(
             db,
             items=items,
             discount=money(discount),
@@ -340,6 +361,8 @@ def create_sale(
             customer_id=int(customer_id) if customer_id else None,
             employee_name=employee_name,
         )
+        create_payment_charge(db, sale=sale, amount=sale.total, method=payment_method)
+        db.commit()
     except StockError as exc:
         rows = db.query(Sale).order_by(desc(Sale.created_at)).all()
         products = db.query(Product).filter(Product.active.is_(True)).order_by(Product.name).all()
@@ -381,8 +404,6 @@ def view_invoice(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("sales.view")),
 ):
-    from app.models import FiscalInvoice
-
     invoice = db.get(FiscalInvoice, invoice_id)
     if invoice is None:
         raise HTTPException(status_code=404, detail="Nota fiscal nao encontrada.")
@@ -390,6 +411,103 @@ def view_invoice(
         "invoice.html",
         template_context(request, current_user, invoice=invoice),
     )
+
+
+@app.get("/servicos")
+def services_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("services.view")),
+):
+    rows = db.query(ServiceOrder).order_by(desc(ServiceOrder.created_at)).all()
+    customers = db.query(Customer).order_by(Customer.name).all()
+    return templates.TemplateResponse(
+        "services.html",
+        template_context(request, current_user, services=rows, customers=customers, error=None),
+    )
+
+
+@app.post("/servicos")
+def create_service_order(
+    request: Request,
+    description: str = Form(...),
+    amount: str = Form(...),
+    payment_method: str = Form("pix"),
+    customer_id: str | None = Form(None),
+    employee_name: str | None = Form(None),
+    due_date: str | None = Form(None),
+    card_brand: str | None = Form(None),
+    installments: int = Form(1),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("services.create")),
+):
+    try:
+        register_completed_service(
+            db,
+            description=description,
+            amount=money(amount),
+            payment_method=payment_method,
+            customer_id=int(customer_id) if customer_id else None,
+            employee_name=employee_name,
+            due_date=parse_optional_date(due_date),
+            card_brand=card_brand,
+            installments=installments,
+        )
+    except (StockError, ValueError) as exc:
+        rows = db.query(ServiceOrder).order_by(desc(ServiceOrder.created_at)).all()
+        customers = db.query(Customer).order_by(Customer.name).all()
+        return templates.TemplateResponse(
+            "services.html",
+            template_context(request, current_user, services=rows, customers=customers, error=str(exc)),
+            status_code=400,
+        )
+    return redirect("/servicos")
+
+
+@app.post("/servicos/{service_id}/emitir-nf")
+def emit_service_invoice(
+    service_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("services.create")),
+):
+    service_order = db.get(ServiceOrder, service_id)
+    if service_order is None:
+        raise HTTPException(status_code=404, detail="Servico nao encontrado.")
+    invoice = issue_service_invoice(db, service_order)
+    return redirect(f"/notas-servico/{invoice.id}")
+
+
+@app.get("/notas-servico/{invoice_id}")
+def view_service_invoice(
+    request: Request,
+    invoice_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("services.view")),
+):
+    invoice = db.get(ServiceInvoice, invoice_id)
+    if invoice is None:
+        raise HTTPException(status_code=404, detail="Nota fiscal de servico nao encontrada.")
+    return templates.TemplateResponse(
+        "service_invoice.html",
+        template_context(request, current_user, invoice=invoice),
+    )
+
+
+@app.get("/cobrancas/{charge_id}")
+def view_charge(
+    request: Request,
+    charge_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    charge = db.get(PaymentCharge, charge_id)
+    if charge is None:
+        raise HTTPException(status_code=404, detail="Cobranca nao encontrada.")
+    if charge.sale_id and not has_permission(current_user, "sales.view"):
+        raise HTTPException(status_code=403, detail="Seu usuario nao tem permissao para acessar esta cobranca.")
+    if charge.service_order_id and not has_permission(current_user, "services.view"):
+        raise HTTPException(status_code=403, detail="Seu usuario nao tem permissao para acessar esta cobranca.")
+    return templates.TemplateResponse("charge.html", template_context(request, current_user, charge=charge))
 
 
 @app.get("/estoque")

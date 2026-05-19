@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}NFS {{ invoice.series }}-{{ "%06d"|format(invoice.number) }} - Banca Moderna{% endblock %}
+{% block heading %}Nota Fiscal de Servico{% endblock %}
+{% block subheading %}Documento interno para servico concluido.{% endblock %}
+
+{% block content %}
+<section class="panel invoice-actions">
+  <a class="button-link" href="/servicos">Voltar para servicos</a>
+  <button type="button" onclick="window.print()">Imprimir</button>
+</section>
+
+<section class="invoice-document">
+  <header class="invoice-header">
+    <div>
+      <h2>{{ invoice.issuer_name }}</h2>
+      <p>Documento interno de servico</p>
+      {% if invoice.issuer_document %}<p>Documento: {{ invoice.issuer_document }}</p>{% endif %}
+    </div>
+    <div>
+      <strong>NFS {{ invoice.series }}-{{ "%06d"|format(invoice.number) }}</strong>
+      <span>Status: {{ invoice.status }}</span>
+      <span>Emissao: {{ invoice.issued_at.strftime("%d/%m/%Y %H:%M") }}</span>
+    </div>
+  </header>
+
+  <div class="invoice-key">
+    <span>Chave interna</span>
+    <strong>{{ invoice.access_key }}</strong>
+  </div>
+
+  <div class="invoice-parties">
+    <div>
+      <h3>Cliente</h3>
+      <p>{{ invoice.service_order.customer.name if invoice.service_order.customer else "Cliente nao identificado" }}</p>
+      {% if invoice.service_order.customer and invoice.service_order.customer.document %}<p>Documento: {{ invoice.service_order.customer.document }}</p>{% endif %}
+    </div>
+    <div>
+      <h3>Servico</h3>
+      <p>Servico #{{ invoice.service_order.id }}</p>
+      <p>Pagamento: {{ invoice.service_order.payment_method }}</p>
+      <p>Responsavel: {{ invoice.service_order.employee_name or "-" }}</p>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>Descricao</th><th>Status</th><th>Concluido em</th><th>Total</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>{{ invoice.service_order.description }}</td>
+        <td>{{ invoice.service_order.status.value }}</td>
+        <td>{{ invoice.service_order.completed_at.strftime("%d/%m/%Y %H:%M") }}</td>
+        <td>R$ {{ "%.2f"|format(invoice.service_order.amount) }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="invoice-totals">
+    <p><span>Total do servico</span><strong>R$ {{ "%.2f"|format(invoice.service_order.amount) }}</strong></p>
+  </div>
+
+  <footer>
+    <p>{{ invoice.notes }}</p>
+  </footer>
+</section>
+{% endblock %}

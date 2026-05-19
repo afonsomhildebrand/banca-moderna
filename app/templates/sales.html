@@ -98,7 +98,9 @@
           <select name="payment_method" id="paymentMethod">
             <option value="dinheiro">Dinheiro</option>
             <option value="pix">Pix</option>
-            <option value="cartao">Cartao</option>
+            <option value="boleto">Boleto</option>
+            <option value="debito">Debito</option>
+            <option value="credito">Credito</option>
             <option value="fiado">Fiado</option>
             <option value="vale">Vale</option>
           </select>
@@ -108,8 +110,8 @@
       <div class="payment-strip" aria-label="Atalhos de pagamento">
         <button type="button" class="payment-option active" data-payment="dinheiro">Dinheiro</button>
         <button type="button" class="payment-option" data-payment="pix">Pix</button>
-        <button type="button" class="payment-option" data-payment="cartao">Cartao</button>
-        <button type="button" class="payment-option" data-payment="fiado">Fiado</button>
+        <button type="button" class="payment-option" data-payment="boleto">Boleto</button>
+        <button type="button" class="payment-option" data-payment="credito">Credito</button>
       </div>
 
       <div class="cart-summary">
@@ -132,7 +134,7 @@
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>#</th><th>Cliente</th><th>Itens</th><th>Pagamento</th><th>Total</th><th>NF</th><th>Data</th></tr></thead>
+      <thead><tr><th>#</th><th>Cliente</th><th>Itens</th><th>Pagamento</th><th>Total</th><th>Cobranca</th><th>NF</th><th>Data</th></tr></thead>
       <tbody>
         {% for sale in sales %}
         <tr>
@@ -141,6 +143,13 @@
           <td>{{ sale.items|length }}</td>
           <td>{{ sale.payment_method }}</td>
           <td>R$ {{ "%.2f"|format(sale.total) }}</td>
+          <td>
+            {% if sale.charges %}
+            <a class="table-action" href="/cobrancas/{{ sale.charges[-1].id }}">{{ sale.charges[-1].reference }}</a>
+            {% else %}
+            -
+            {% endif %}
+          </td>
           <td>
             {% if sale.invoice %}
             <a class="table-action" href="/notas/{{ sale.invoice.id }}">NF {{ sale.invoice.series }}-{{ "%06d"|format(sale.invoice.number) }}</a>
@@ -155,7 +164,7 @@
           <td>{{ sale.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="7">Nenhuma venda registrada.</td></tr>
+        <tr><td colspan="8">Nenhuma venda registrada.</td></tr>
         {% endfor %}
       </tbody>
     </table>

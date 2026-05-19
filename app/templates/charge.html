@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Cobranca {{ charge.reference }} - Banca Moderna{% endblock %}
+{% block heading %}Cobranca{% endblock %}
+{% block subheading %}Controle interno de pagamento por boleto, Pix, debito ou credito.{% endblock %}
+
+{% block content %}
+<section class="panel invoice-actions">
+  {% if charge.service_order_id %}
+  <a class="button-link" href="/servicos">Voltar para servicos</a>
+  {% else %}
+  <a class="button-link" href="/vendas">Voltar para vendas</a>
+  {% endif %}
+  <button type="button" onclick="window.print()">Imprimir</button>
+</section>
+
+<section class="invoice-document">
+  <header class="invoice-header">
+    <div>
+      <h2>Banca Moderna</h2>
+      <p>Cobranca interna</p>
+      <p>Origem:
+        {% if charge.sale_id %}Venda #{{ charge.sale_id }}{% endif %}
+        {% if charge.service_order_id %}Servico #{{ charge.service_order_id }}{% endif %}
+      </p>
+    </div>
+    <div>
+      <strong>{{ charge.reference }}</strong>
+      <span>Status: {{ charge.status.value }}</span>
+      <span>Emissao: {{ charge.created_at.strftime("%d/%m/%Y %H:%M") }}</span>
+      {% if charge.due_date %}<span>Vencimento: {{ charge.due_date.strftime("%d/%m/%Y") }}</span>{% endif %}
+    </div>
+  </header>
+
+  <div class="charge-box">
+    <span>Forma de pagamento</span>
+    <strong>{{ charge.method|upper }}</strong>
+  </div>
+
+  {% if charge.digitable_line %}
+  <div class="charge-box">
+    <span>Linha digitavel do boleto</span>
+    <strong>{{ charge.digitable_line }}</strong>
+  </div>
+  {% endif %}
+
+  {% if charge.pix_copy_paste %}
+  <div class="charge-box">
+    <span>Pix copia e cola</span>
+    <strong>{{ charge.pix_copy_paste }}</strong>
+  </div>
+  {% endif %}
+
+  {% if charge.method in ["debito", "credito"] %}
+  <div class="invoice-parties">
+    <div>
+      <h3>Cartao</h3>
+      <p>Bandeira: {{ charge.card_brand or "-" }}</p>
+      <p>Parcelas: {{ charge.installments }}</p>
+    </div>
+    <div>
+      <h3>Conciliacao</h3>
+      <p>Use a referencia {{ charge.reference }} na maquininha ou adquirente.</p>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="invoice-totals">
+    <p><span>Valor</span><strong>R$ {{ "%.2f"|format(charge.amount) }}</strong></p>
+  </div>
+
+  <footer>
+    <p>{{ charge.notes }}</p>
+  </footer>
+</section>
+{% endblock %}

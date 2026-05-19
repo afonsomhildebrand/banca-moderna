@@ -4,7 +4,7 @@
 
 O aplicativo Banca Moderna tem como objetivo controlar a operacao de uma banca que vende jornais, revistas, livros, revistinhas, colecoes, albuns, figurinhas, jogos, bebidas, comidas, doces e chicletes, com suporte a itens nacionais e internacionais.
 
-O sistema centraliza cadastros, vendas, compras, estoque, usuarios e emissao de NF interna para vendas.
+O sistema centraliza cadastros, vendas, compras, servicos, estoque, usuarios, cobrancas e emissao de NF interna para vendas e servicos.
 
 ## 2. Perfis de acesso
 
@@ -18,6 +18,7 @@ O usuario administrador possui acesso total ao aplicativo:
 - Fornecedores.
 - Compras.
 - Vendas.
+- Servicos.
 - Estoque.
 - Usuarios.
 - Emissao e visualizacao de NF interna.
@@ -150,6 +151,7 @@ Funcionalidades:
 - Remocao de item do carrinho.
 - Desconto geral da venda.
 - Forma de pagamento.
+- Geracao de cobranca interna para boleto, Pix, debito e credito.
 - Cliente identificado ou nao identificado.
 - Vendedor.
 - Baixa automatica de estoque.
@@ -162,6 +164,43 @@ Ao confirmar a venda:
 - Os itens da venda sao gravados.
 - O estoque de cada produto vendido e reduzido.
 - Uma movimentacao de estoque do tipo `sale` e criada para cada produto.
+
+### Servicos
+
+Disponivel somente para administrador.
+
+Permite registrar servicos concluidos, por exemplo encadernacao, plastificacao, entrega, assinatura, montagem de colecao ou outro atendimento prestado pela banca.
+
+Campos principais:
+
+- Descricao do servico.
+- Cliente.
+- Responsavel.
+- Valor.
+- Forma de pagamento.
+- Vencimento.
+- Bandeira do cartao.
+- Parcelas.
+
+Ao registrar o servico:
+
+- O servico e gravado como concluido.
+- Uma cobranca interna e gerada quando a forma for boleto, Pix, debito ou credito.
+- O historico permite emitir uma NF interna de servico.
+
+### Cobrancas
+
+Disponivel a partir de vendas e servicos.
+
+Permite:
+
+- Gerar boleto interno com linha digitavel.
+- Gerar Pix copia e cola interno.
+- Registrar cobranca de debito para conciliacao.
+- Registrar cobranca de credito com parcelas.
+- Imprimir a cobranca pelo navegador.
+
+Observacao: boletos, Pix e cobrancas de cartao sao controles internos. Para cobranca bancaria real, e necessario integrar banco, PSP Pix ou adquirente de cartoes.
 
 ### Estoque
 
@@ -191,18 +230,19 @@ O administrador nao pode desativar o proprio usuario.
 
 ### NF interna
 
-Disponivel a partir do historico de vendas.
+Disponivel a partir do historico de vendas e servicos.
 
 Permite:
 
 - Emitir uma NF interna para uma venda.
+- Emitir uma NF interna para um servico concluido.
 - Gerar numero sequencial.
 - Gerar serie.
 - Gerar chave interna.
 - Abrir pagina da NF.
 - Imprimir a NF pelo navegador.
 
-Observacao: a NF implementada e um documento interno/imprimivel do sistema. Nao e uma NF-e ou NFC-e oficial autorizada pela SEFAZ.
+Observacao: a NF implementada e um documento interno/imprimivel do sistema. Nao e uma NF-e, NFC-e ou NFS-e oficial autorizada pela SEFAZ ou prefeitura.
 
 ## 4. Regras de negocio
 
@@ -213,6 +253,7 @@ Observacao: a NF implementada e um documento interno/imprimivel do sistema. Nao 
 - Compra deve possuir quantidade maior que zero.
 - Produto inexistente bloqueia compra ou venda.
 - Cada venda pode ter no maximo uma NF interna.
+- Cada servico pode ter no maximo uma NF interna de servico.
 - Se a NF ja existir, o sistema reabre a NF existente.
 
 ## 5. Fluxo operacional principal

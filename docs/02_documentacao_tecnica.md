@@ -37,10 +37,13 @@ Banca Moderna/
       dashboard.html
       error.html
       invoice.html
+      charge.html
       login.html
       products.html
       purchases.html
       sales.html
+      service_invoice.html
+      services.html
       stock.html
       suppliers.html
       users.html
@@ -88,6 +91,9 @@ Define os modelos SQLAlchemy:
 - `SaleItem`.
 - `StockMovement`.
 - `FiscalInvoice`.
+- `ServiceOrder`.
+- `ServiceInvoice`.
+- `PaymentCharge`.
 
 ### `app/auth.py`
 
@@ -107,7 +113,7 @@ Tambem define o menu visivel por usuario.
 
 ### `app/services.py`
 
-Contem regras de compra, venda e estoque.
+Contem regras de compra, venda, servico, cobranca e estoque.
 
 Funcoes principais:
 
@@ -115,15 +121,18 @@ Funcoes principais:
 - `register_purchase`.
 - `register_sale`.
 - `register_sale_items`.
+- `register_completed_service`.
+- `create_payment_charge`.
 
 ### `app/invoices.py`
 
-Contem a emissao de NF interna.
+Contem a emissao de NF interna de venda e servico.
 
 Funcoes:
 
 - `generate_access_key`.
 - `issue_invoice`.
+- `issue_service_invoice`.
 
 ### `app/bootstrap.py`
 
@@ -229,6 +238,52 @@ Campos importantes:
 - `issuer_name`.
 - `issued_at`.
 
+### `service_orders`
+
+Servicos concluidos.
+
+Campos importantes:
+
+- `customer_id`.
+- `description`.
+- `employee_name`.
+- `amount`.
+- `payment_method`.
+- `status`.
+- `completed_at`.
+
+### `service_invoices`
+
+NF interna de servico.
+
+Campos importantes:
+
+- `service_order_id`.
+- `number`.
+- `series`.
+- `access_key`.
+- `status`.
+- `issuer_name`.
+- `issued_at`.
+
+### `payment_charges`
+
+Cobrancas internas de vendas e servicos.
+
+Campos importantes:
+
+- `sale_id`.
+- `service_order_id`.
+- `method`.
+- `status`.
+- `amount`.
+- `due_date`.
+- `reference`.
+- `digitable_line`.
+- `pix_copy_paste`.
+- `card_brand`.
+- `installments`.
+
 ## 6. Autenticacao e sessao
 
 A aplicacao usa `SessionMiddleware` do Starlette.
@@ -296,9 +351,9 @@ DATABASE_URL=mysql+pymysql://banca_user:banca_password@db:3306/banca_moderna
 APP_SECRET_KEY=troque-esta-chave
 ```
 
-## 10. Observacao sobre NF oficial
+## 10. Observacao sobre NF e cobranca oficial
 
-A NF atual e interna. Para emitir NF-e ou NFC-e oficial no Brasil, sera necessario implementar:
+A NF atual e interna. Para emitir NF-e, NFC-e ou NFS-e oficial no Brasil, sera necessario implementar:
 
 - Cadastro fiscal da empresa.
 - Certificado digital A1 ou A3.
@@ -309,3 +364,9 @@ A NF atual e interna. Para emitir NF-e ou NFC-e oficial no Brasil, sera necessar
 - Assinatura XML.
 - Autorizacao, cancelamento e inutilizacao.
 
+As cobrancas de boleto, Pix, debito e credito tambem sao internas. Para cobranca real, sera necessario integrar:
+
+- Banco ou gateway para boleto registrado.
+- PSP Pix para QR Code dinamico/copia e cola valido.
+- Adquirente/maquininha para debito e credito.
+- Webhooks de liquidacao e conciliacao.
