@@ -323,7 +323,23 @@ Se nao estiver logado:
 
 - O sistema redireciona para `/login`.
 
-## 8. Docker
+As requisicoes `POST` usam token CSRF gravado na sessao. Cada formulario renderizado pelo Jinja envia o campo `csrf_token`; se o token estiver ausente ou invalido, o sistema retorna 403.
+
+## 8. Banco e migrations
+
+Na inicializacao, o MVP ainda executa:
+
+```python
+Base.metadata.create_all(bind=engine)
+```
+
+Isso cria tabelas ausentes, mas nao altera tabelas existentes. Mudancas de schema, como novos indices ou constraints, precisam ser aplicadas com migration Alembic ou SQL manual em instalacoes que ja tenham banco criado.
+
+Migracoes manuais disponiveis:
+
+- `docs/migrations/001_invoice_unique_numbers.sql`: adiciona indices unicos para numeracao de NF e NFS em bancos ja existentes.
+
+## 9. Docker
 
 Servicos:
 
@@ -338,7 +354,7 @@ Portas:
 
 O MySQL nao e exposto diretamente no host por padrao. Ele fica acessivel internamente no Docker pelo host `db`.
 
-## 9. Variaveis de ambiente
+## 10. Variaveis de ambiente
 
 Arquivo `.env`:
 
@@ -348,10 +364,10 @@ MYSQL_USER=banca_user
 MYSQL_PASSWORD=banca_password
 MYSQL_ROOT_PASSWORD=root_password
 DATABASE_URL=mysql+pymysql://banca_user:banca_password@db:3306/banca_moderna
-APP_SECRET_KEY=troque-esta-chave
+APP_SECRET_KEY=gere-uma-chave-longa-e-aleatoria-antes-de-usar
 ```
 
-## 10. Observacao sobre NF e cobranca oficial
+## 11. Observacao sobre NF e cobranca oficial
 
 A NF atual e interna. Para emitir NF-e, NFC-e ou NFS-e oficial no Brasil, sera necessario implementar:
 

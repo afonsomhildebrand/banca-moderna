@@ -4,10 +4,12 @@
 {% block subheading %}Cadastre jornais, revistas, livros, figurinhas, jogos e conveniencia.{% endblock %}
 
 {% block content %}
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
 {% if can("products.create") %}
 <section class="panel">
   <h2>Novo produto</h2>
   <form method="post" class="form-grid" id="productForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>SKU<input name="sku" required></label>
     <label>Codigo de barras<input id="barcodeInput" name="barcode" inputmode="numeric" autocomplete="off" placeholder="Leia ou digite o codigo"></label>
     <label>Nome<input name="name" required></label>

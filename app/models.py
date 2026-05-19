@@ -238,7 +238,7 @@ class FiscalInvoice(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     sale_id: Mapped[int] = mapped_column(ForeignKey("sales.id"), unique=True, index=True)
-    number: Mapped[int] = mapped_column(index=True)
+    number: Mapped[int] = mapped_column(unique=True, index=True)
     series: Mapped[str] = mapped_column(String(12), default="1")
     access_key: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     status: Mapped[str] = mapped_column(String(40), default="emitida")
@@ -273,7 +273,7 @@ class ServiceInvoice(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     service_order_id: Mapped[int] = mapped_column(ForeignKey("service_orders.id"), unique=True, index=True)
-    number: Mapped[int] = mapped_column(index=True)
+    number: Mapped[int] = mapped_column(unique=True, index=True)
     series: Mapped[str] = mapped_column(String(12), default="S")
     access_key: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     status: Mapped[str] = mapped_column(String(40), default="emitida")

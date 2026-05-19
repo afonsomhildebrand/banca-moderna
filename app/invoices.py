@@ -27,8 +27,7 @@ def issue_invoice(db: Session, sale: Sale) -> FiscalInvoice:
         notes="Documento interno gerado pelo sistema. Para NF-e/NFC-e oficial, integrar com SEFAZ.",
     )
     db.add(invoice)
-    db.commit()
-    db.refresh(invoice)
+    db.flush()
     return invoice
 
 
@@ -46,6 +45,5 @@ def issue_service_invoice(db: Session, service_order: ServiceOrder) -> ServiceIn
         notes="Documento interno de servico concluido. Para NFS-e oficial, integrar com a prefeitura/ambiente fiscal.",
     )
     db.add(invoice)
-    db.commit()
-    db.refresh(invoice)
+    db.flush()
     return invoice

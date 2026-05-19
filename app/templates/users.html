@@ -8,6 +8,7 @@
 <section class="panel">
   <h2>Novo usuario</h2>
   <form method="post" class="form-grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Nome<input name="name" required></label>
     <label>E-mail<input name="email" type="email" required></label>
     <label>Senha<input name="password" type="password" minlength="6" required></label>
@@ -48,6 +49,7 @@
         <td>
           {% if user.id != current_user.id %}
           <form method="post" action="/usuarios/{{ user.id }}/alternar-status" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="secondary">{% if user.active %}Desativar{% else %}Ativar{% endif %}</button>
           </form>
           {% else %}

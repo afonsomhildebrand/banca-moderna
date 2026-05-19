@@ -1,11 +1,14 @@
 from datetime import date
 from decimal import Decimal
+from secrets import token_urlsafe
+from urllib.parse import parse_qs
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import desc, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -34,9 +37,87 @@ from app.services import StockError, create_payment_charge, money, register_comp
 
 
 app = FastAPI(title="Banca Moderna")
-app.add_middleware(SessionMiddleware, secret_key=get_settings().app_secret_key, same_site="lax")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+
+
+def get_csrf_token(request: Request) -> str:
+    token = request.session.get("csrf_token")
+    if not token:
+        token = token_urlsafe(32)
+        request.session["csrf_token"] = token
+    return token
+
+
+@app.middleware("http")
+async def csrf_middleware(request: Request, call_next):
+    if request.method == "POST":
+        body = await request.body()
+        parsed_form = parse_qs(body.decode(), keep_blank_values=True)
+        submitted_token = (parsed_form.get("csrf_token") or [None])[0]
+        session_token = request.session.get("csrf_token")
+        if not session_token or submitted_token != session_token:
+            return templates.TemplateResponse(
+                "error.html",
+                {"request": request, "status_code": 403, "detail": "Token de seguranca invalido. Recarregue a pagina e tente novamente."},
+                status_code=403,
+            )
+
+        async def receive():
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        request._receive = receive
+    return await call_next(request)
+
+
+app.add_middleware(SessionMiddleware, secret_key=get_settings().app_secret_key, same_site="lax")
+
+
+def commit_or_error(db: Session, message: str) -> None:
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise StockError(message) from exc
+
+
+def rollback_error(db: Session, exc: Exception) -> str:
+    db.rollback()
+    return str(exc)
+
+
+def issue_invoice_with_retry(db: Session, sale_id: int, attempts: int = 3) -> FiscalInvoice:
+    for attempt in range(attempts):
+        sale = db.get(Sale, sale_id)
+        if sale is None:
+            raise HTTPException(status_code=404, detail="Venda nao encontrada.")
+        try:
+            invoice = issue_invoice(db, sale)
+            db.commit()
+            db.refresh(invoice)
+            return invoice
+        except IntegrityError as exc:
+            db.rollback()
+            if attempt == attempts - 1:
+                raise StockError("Nao foi possivel emitir a nota. Tente novamente.") from exc
+    raise StockError("Nao foi possivel emitir a nota. Tente novamente.")
+
+
+def issue_service_invoice_with_retry(db: Session, service_id: int, attempts: int = 3) -> ServiceInvoice:
+    for attempt in range(attempts):
+        service_order = db.get(ServiceOrder, service_id)
+        if service_order is None:
+            raise HTTPException(status_code=404, detail="Servico nao encontrado.")
+        try:
+            invoice = issue_service_invoice(db, service_order)
+            db.commit()
+            db.refresh(invoice)
+            return invoice
+        except IntegrityError as exc:
+            db.rollback()
+            if attempt == attempts - 1:
+                raise StockError("Nao foi possivel emitir a nota de servico. Tente novamente.") from exc
+    raise StockError("Nao foi possivel emitir a nota de servico. Tente novamente.")
 
 
 @app.on_event("startup")
@@ -63,6 +144,7 @@ def template_context(request: Request, current_user: User, **extra):
         "menu_items": visible_menu(current_user),
         "can": lambda permission: has_permission(current_user, permission),
         "role_labels": ROLE_LABELS,
+        "csrf_token": get_csrf_token(request),
     }
     context.update(extra)
     return context
@@ -73,7 +155,7 @@ def login_form(request: Request, db: Session = Depends(get_db)):
     user_id = request.session.get("user_id")
     if user_id and db.get(User, user_id):
         return redirect("/")
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    return templates.TemplateResponse("login.html", {"request": request, "error": None, "csrf_token": get_csrf_token(request)})
 
 
 @app.post("/login")
@@ -87,12 +169,14 @@ def login(
     if user is None or not user.active or not verify_password(password, user.password_hash):
         return templates.TemplateResponse(
             "login.html",
-            {"request": request, "error": "E-mail ou senha invalidos."},
+            {"request": request, "error": "E-mail ou senha invalidos.", "csrf_token": get_csrf_token(request)},
             status_code=400,
         )
 
+    csrf_token = get_csrf_token(request)
     request.session.clear()
     request.session["user_id"] = user.id
+    request.session["csrf_token"] = csrf_token
     return redirect("/" if user.role == "admin" else "/vendas")
 
 
@@ -157,12 +241,14 @@ def products(
             categories=categories,
             suppliers=suppliers,
             kinds=ProductKind,
+            error=None,
         ),
     )
 
 
 @app.post("/produtos")
 def create_product(
+    request: Request,
     sku: str = Form(...),
     name: str = Form(...),
     kind: ProductKind = Form(ProductKind.other),
@@ -177,21 +263,46 @@ def create_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("products.create")),
 ):
-    product = Product(
-        sku=sku.strip(),
-        barcode=barcode.strip() if barcode else None,
-        name=name.strip(),
-        kind=kind,
-        sale_price=money(sale_price),
-        cost_price=money(cost_price),
-        min_quantity=min_quantity,
-        quantity_on_hand=quantity_on_hand,
-        category_id=int(category_id) if category_id else None,
-        supplier_id=int(supplier_id) if supplier_id else None,
-        origin_country=origin_country.strip() or "Brasil",
-    )
-    db.add(product)
-    db.commit()
+    try:
+        if min_quantity < 0 or quantity_on_hand < 0:
+            raise StockError("Estoque inicial e estoque minimo nao podem ser negativos.")
+        product = Product(
+            sku=sku.strip(),
+            barcode=barcode.strip() if barcode else None,
+            name=name.strip(),
+            kind=kind,
+            sale_price=money(sale_price),
+            cost_price=money(cost_price),
+            min_quantity=min_quantity,
+            quantity_on_hand=quantity_on_hand,
+            category_id=int(category_id) if category_id else None,
+            supplier_id=int(supplier_id) if supplier_id else None,
+            origin_country=origin_country.strip() or "Brasil",
+        )
+        if not product.sku or not product.name:
+            raise StockError("SKU e nome sao obrigatorios.")
+        if product.sale_price < 0 or product.cost_price < 0:
+            raise StockError("Precos nao podem ser negativos.")
+        db.add(product)
+        commit_or_error(db, "Ja existe produto com este SKU ou codigo de barras.")
+    except StockError as exc:
+        error = rollback_error(db, exc)
+        rows = db.query(Product).order_by(Product.name).all()
+        categories = db.query(Category).order_by(Category.name).all()
+        suppliers = db.query(Supplier).order_by(Supplier.name).all()
+        return templates.TemplateResponse(
+            "products.html",
+            template_context(
+                request,
+                current_user,
+                products=rows,
+                categories=categories,
+                suppliers=suppliers,
+                kinds=ProductKind,
+                error=error,
+            ),
+            status_code=400,
+        )
     return redirect("/produtos")
 
 
@@ -215,7 +326,10 @@ def create_customer(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("customers.create")),
 ):
-    db.add(Customer(name=name.strip(), phone=phone, email=email, document=document, notes=notes))
+    customer_name = name.strip()
+    if not customer_name:
+        raise HTTPException(status_code=400, detail="Nome do cliente e obrigatorio.")
+    db.add(Customer(name=customer_name, phone=phone, email=email, document=document, notes=notes))
     db.commit()
     return redirect("/clientes")
 
@@ -241,9 +355,12 @@ def create_supplier(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("suppliers.create")),
 ):
+    supplier_name = name.strip()
+    if not supplier_name:
+        raise HTTPException(status_code=400, detail="Nome do fornecedor e obrigatorio.")
     db.add(
         Supplier(
-            name=name.strip(),
+            name=supplier_name,
             country=country.strip() or "Brasil",
             currency=currency.strip().upper() or "BRL",
             phone=phone,
@@ -289,8 +406,11 @@ def create_purchase(
     current_user: User = Depends(require_permission("purchases.create")),
 ):
     try:
-        register_purchase(db, supplier_id, product_id, quantity, money(unit_cost), document_number)
-    except StockError as exc:
+        purchase = register_purchase(db, supplier_id, product_id, quantity, money(unit_cost), document_number)
+        commit_or_error(db, "Nao foi possivel registrar a compra.")
+        db.refresh(purchase)
+    except (StockError, ValueError) as exc:
+        error = rollback_error(db, exc)
         products = db.query(Product).filter(Product.active.is_(True)).order_by(Product.name).all()
         suppliers = db.query(Supplier).order_by(Supplier.name).all()
         rows = db.query(Purchase).order_by(desc(Purchase.created_at)).all()
@@ -302,7 +422,7 @@ def create_purchase(
                 purchases=rows,
                 products=products,
                 suppliers=suppliers,
-                error=str(exc),
+                error=error,
             ),
             status_code=400,
         )
@@ -362,8 +482,10 @@ def create_sale(
             employee_name=employee_name,
         )
         create_payment_charge(db, sale=sale, amount=sale.total, method=payment_method)
-        db.commit()
-    except StockError as exc:
+        commit_or_error(db, "Nao foi possivel finalizar a venda.")
+        db.refresh(sale)
+    except (StockError, ValueError) as exc:
+        error = rollback_error(db, exc)
         rows = db.query(Sale).order_by(desc(Sale.created_at)).all()
         products = db.query(Product).filter(Product.active.is_(True)).order_by(Product.name).all()
         customers = db.query(Customer).order_by(Customer.name).all()
@@ -377,7 +499,7 @@ def create_sale(
                 products=products,
                 customers=customers,
                 categories=categories,
-                error=str(exc),
+                error=error,
             ),
             status_code=400,
         )
@@ -390,10 +512,10 @@ def emit_invoice(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("sales.create")),
 ):
-    sale = db.get(Sale, sale_id)
-    if sale is None:
-        raise HTTPException(status_code=404, detail="Venda nao encontrada.")
-    invoice = issue_invoice(db, sale)
+    try:
+        invoice = issue_invoice_with_retry(db, sale_id)
+    except StockError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return redirect(f"/notas/{invoice.id}")
 
 
@@ -442,7 +564,7 @@ def create_service_order(
     current_user: User = Depends(require_permission("services.create")),
 ):
     try:
-        register_completed_service(
+        service_order = register_completed_service(
             db,
             description=description,
             amount=money(amount),
@@ -453,12 +575,15 @@ def create_service_order(
             card_brand=card_brand,
             installments=installments,
         )
+        commit_or_error(db, "Nao foi possivel registrar o servico.")
+        db.refresh(service_order)
     except (StockError, ValueError) as exc:
+        error = rollback_error(db, exc)
         rows = db.query(ServiceOrder).order_by(desc(ServiceOrder.created_at)).all()
         customers = db.query(Customer).order_by(Customer.name).all()
         return templates.TemplateResponse(
             "services.html",
-            template_context(request, current_user, services=rows, customers=customers, error=str(exc)),
+            template_context(request, current_user, services=rows, customers=customers, error=error),
             status_code=400,
         )
     return redirect("/servicos")
@@ -470,10 +595,10 @@ def emit_service_invoice(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("services.create")),
 ):
-    service_order = db.get(ServiceOrder, service_id)
-    if service_order is None:
-        raise HTTPException(status_code=404, detail="Servico nao encontrado.")
-    invoice = issue_service_invoice(db, service_order)
+    try:
+        invoice = issue_service_invoice_with_retry(db, service_id)
+    except StockError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return redirect(f"/notas-servico/{invoice.id}")
 
 
@@ -551,6 +676,8 @@ def create_user(
     normalized_email = email.strip().lower()
     if role not in ROLE_LABELS:
         raise HTTPException(status_code=400, detail="Perfil de acesso invalido.")
+    if not name.strip() or len(password) < 6:
+        raise HTTPException(status_code=400, detail="Nome e senha com pelo menos 6 caracteres sao obrigatorios.")
     if db.query(User).filter(User.email == normalized_email).first():
         rows = db.query(User).order_by(User.name).all()
         return templates.TemplateResponse(
@@ -574,7 +701,22 @@ def create_user(
             active=active == "on",
         )
     )
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        rows = db.query(User).order_by(User.name).all()
+        return templates.TemplateResponse(
+            "users.html",
+            template_context(
+                request,
+                current_user,
+                users=rows,
+                roles=ROLE_LABELS,
+                error="Ja existe um usuario com este e-mail.",
+            ),
+            status_code=400,
+        )
     return redirect("/usuarios")
 
 

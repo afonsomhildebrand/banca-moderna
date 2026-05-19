@@ -1,4 +1,5 @@
 import os
+from re import search
 from collections.abc import Generator
 
 import pytest
@@ -47,4 +48,11 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
 
 
 def login(client: TestClient, email: str = "admin@bancamoderna.local", password: str = "admin123"):
-    return client.post("/login", data={"email": email, "password": password}, follow_redirects=False)
+    response = client.get("/login")
+    match = search(r'name="csrf_token" value="([^"]+)"', response.text)
+    assert match is not None
+    return client.post(
+        "/login",
+        data={"email": email, "password": password, "csrf_token": match.group(1)},
+        follow_redirects=False,
+    )

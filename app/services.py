@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from sqlalchemy.orm import Session
 
@@ -25,7 +25,11 @@ CHARGE_METHODS = {"boleto", "pix", "debito", "credito"}
 def money(value: str | int | float | Decimal | None) -> Decimal:
     if value in (None, ""):
         return Decimal("0")
-    return Decimal(str(value)).quantize(Decimal("0.01"))
+    normalized = str(value).strip().replace(",", ".")
+    try:
+        return Decimal(normalized).quantize(Decimal("0.01"))
+    except (InvalidOperation, ValueError) as exc:
+        raise StockError("Valor monetario invalido.") from exc
 
 
 def create_payment_charge(
@@ -41,10 +45,13 @@ def create_payment_charge(
 ) -> PaymentCharge | None:
     if method not in CHARGE_METHODS:
         return None
+    if sale is None and service_order is None:
+        raise StockError("A cobranca precisa estar vinculada a uma venda ou servico.")
 
+    scope = "VEN" if sale else "SRV"
     prefix = {"boleto": "BOL", "pix": "PIX", "debito": "DEB", "credito": "CRE"}[method]
-    reference_id = sale.id if sale else service_order.id if service_order else 0
-    reference = f"{prefix}-{reference_id:06d}"
+    reference_id = sale.id if sale else service_order.id
+    reference = f"{scope}-{prefix}-{reference_id:06d}"
     charge = PaymentCharge(
         sale=sale,
         service_order=service_order,
@@ -86,6 +93,8 @@ def register_completed_service(
     total = money(amount)
     if total <= 0:
         raise StockError("O valor do servico deve ser maior que zero.")
+    if not description.strip():
+        raise StockError("Informe a descricao do servico.")
 
     service_order = ServiceOrder(
         customer_id=customer_id,
@@ -105,8 +114,6 @@ def register_completed_service(
         card_brand=card_brand,
         installments=installments,
     )
-    db.commit()
-    db.refresh(service_order)
     return service_order
 
 
@@ -118,11 +125,14 @@ def register_purchase(
     unit_cost: Decimal,
     document_number: str | None = None,
 ) -> Purchase:
-    product = db.get(Product, product_id)
+    product = db.get(Product, product_id, with_for_update=True)
     if product is None:
         raise StockError("Produto nao encontrado.")
     if quantity <= 0:
         raise StockError("A quantidade da compra deve ser maior que zero.")
+    unit_cost = money(unit_cost)
+    if unit_cost < 0:
+        raise StockError("O custo unitario nao pode ser negativo.")
 
     total = money(unit_cost * quantity)
     purchase = Purchase(
@@ -153,9 +163,8 @@ def register_purchase(
     db.add(purchase)
     db.flush()
     movement.reference_id = purchase.id
+    db.flush()
 
-    db.commit()
-    db.refresh(purchase)
     return purchase
 
 
@@ -169,11 +178,17 @@ def register_sale(
     customer_id: int | None = None,
     employee_name: str | None = None,
 ) -> Sale:
-    product = db.get(Product, product_id)
+    product = db.get(Product, product_id, with_for_update=True)
     if product is None:
         raise StockError("Produto nao encontrado.")
     if quantity <= 0:
         raise StockError("A quantidade da venda deve ser maior que zero.")
+    unit_price = money(unit_price)
+    discount = money(discount)
+    if unit_price < 0:
+        raise StockError("O preco unitario nao pode ser negativo.")
+    if discount < 0:
+        raise StockError("O desconto nao pode ser negativo.")
     if product.quantity_on_hand < quantity:
         raise StockError(f"Estoque insuficiente. Saldo atual: {product.quantity_on_hand}.")
 
@@ -213,9 +228,8 @@ def register_sale(
     db.add(sale)
     db.flush()
     movement.reference_id = sale.id
+    db.flush()
 
-    db.commit()
-    db.refresh(sale)
     return sale
 
 
@@ -229,6 +243,10 @@ def register_sale_items(
 ) -> Sale:
     if not items:
         raise StockError("Inclua pelo menos um item na venda.")
+
+    discount = money(discount)
+    if discount < 0:
+        raise StockError("O desconto nao pode ser negativo.")
 
     sale = Sale(
         customer_id=customer_id,
@@ -252,8 +270,10 @@ def register_sale_items(
 
         if quantity <= 0:
             raise StockError("Todos os itens devem ter quantidade maior que zero.")
+        if unit_price < 0:
+            raise StockError("O preco unitario nao pode ser negativo.")
 
-        product = products_by_id.get(product_id) or db.get(Product, product_id)
+        product = products_by_id.get(product_id) or db.get(Product, product_id, with_for_update=True)
         if product is None:
             raise StockError("Produto nao encontrado.")
         products_by_id[product_id] = product
@@ -299,6 +319,5 @@ def register_sale_items(
             )
         )
 
-    db.commit()
-    db.refresh(sale)
+    db.flush()
     return sale

@@ -10,6 +10,7 @@
 <section class="panel">
   <h2>Novo servico concluido</h2>
   <form method="post" class="form-grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label class="wide">Descricao do servico<input name="description" required placeholder="Ex.: Encadernacao, plastificacao, assinatura, entrega"></label>
     <label>Cliente
       <select name="customer_id">
@@ -67,6 +68,7 @@
             <a class="table-action" href="/notas-servico/{{ service.invoice.id }}">NFS {{ service.invoice.series }}-{{ "%06d"|format(service.invoice.number) }}</a>
             {% elif can("services.create") %}
             <form method="post" action="/servicos/{{ service.id }}/emitir-nf" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button type="submit" class="secondary">Emitir NF</button>
             </form>
             {% else %}

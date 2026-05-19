@@ -79,6 +79,7 @@
       <button type="button" class="secondary" id="clearCart" disabled>Limpar</button>
     </div>
     <form method="post" id="saleForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="cart-list" id="cartList">
         <p class="empty-cart">Nenhum item selecionado.</p>
       </div>
@@ -155,6 +156,7 @@
             <a class="table-action" href="/notas/{{ sale.invoice.id }}">NF {{ sale.invoice.series }}-{{ "%06d"|format(sale.invoice.number) }}</a>
             {% elif can("sales.create") %}
             <form method="post" action="/vendas/{{ sale.id }}/emitir-nf" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button type="submit" class="secondary">Emitir NF</button>
             </form>
             {% else %}

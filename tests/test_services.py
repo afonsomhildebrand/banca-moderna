@@ -4,7 +4,7 @@ import pytest
 
 from app.invoices import issue_invoice
 from app.models import Product, ProductKind, Supplier
-from app.services import StockError, register_purchase, register_sale_items
+from app.services import StockError, create_payment_charge, register_completed_service, register_purchase, register_sale_items
 
 
 def create_supplier(db_session, name="Fornecedor Teste"):
@@ -105,3 +105,23 @@ def test_issue_invoice_is_idempotent_for_sale(db_session):
     assert invoice_a.id == invoice_b.id
     assert invoice_a.number == 1
     assert invoice_a.access_key.startswith("BM")
+
+
+def test_payment_charge_references_include_origin_scope(db_session):
+    product = create_product(db_session, stock=3)
+    sale = register_sale_items(
+        db_session,
+        items=[{"product_id": product.id, "quantity": 1, "unit_price": Decimal("10.00")}],
+        discount=Decimal("0"),
+        payment_method="pix",
+    )
+    sale_charge = create_payment_charge(db_session, sale=sale, amount=sale.total, method="pix")
+    service = register_completed_service(
+        db_session,
+        description="Servico teste",
+        amount=Decimal("10.00"),
+        payment_method="pix",
+    )
+
+    assert sale_charge.reference == "VEN-PIX-000001"
+    assert service.charges[0].reference == "SRV-PIX-000001"

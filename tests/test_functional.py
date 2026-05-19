@@ -1,22 +1,38 @@
 from decimal import Decimal
+from re import search
+from urllib.parse import urlencode
 
 from app.models import PaymentCharge, Product, ProductKind, ServiceOrder, User
 from app.security import hash_password
 
 
+def csrf_token(client, path: str = "/login") -> str:
+    response = client.get(path)
+    match = search(r'name="csrf_token" value="([^"]+)"', response.text)
+    assert match is not None
+    return match.group(1)
+
+
 def login(client, email: str = "admin@bancamoderna.local", password: str = "admin123"):
-    return client.post("/login", data={"email": email, "password": password}, follow_redirects=False)
+    return client.post(
+        "/login",
+        data={"email": email, "password": password, "csrf_token": csrf_token(client)},
+        follow_redirects=False,
+    )
 
 
 def post_sale(client, product_id: int, quantity: int, unit_price: str, discount: str = "0", payment_method: str = "pix"):
-    body = (
-        f"product_id={product_id}"
-        f"&quantity={quantity}"
-        f"&unit_price={unit_price}"
-        f"&discount={discount}"
-        f"&payment_method={payment_method}"
-        "&customer_id="
-        "&employee_name=Admin"
+    body = urlencode(
+        {
+            "product_id": product_id,
+            "quantity": quantity,
+            "unit_price": unit_price,
+            "discount": discount,
+            "payment_method": payment_method,
+            "customer_id": "",
+            "employee_name": "Admin",
+            "csrf_token": csrf_token(client, "/vendas"),
+        }
     )
     return client.post(
         "/vendas",
@@ -77,6 +93,7 @@ def test_admin_can_create_product_and_make_sale(client, db_session):
     product_response = client.post(
         "/produtos",
         data={
+            "csrf_token": csrf_token(client, "/produtos"),
             "sku": "FUNC-001",
             "barcode": "7891234567890",
             "name": "Revista Funcional",
@@ -134,7 +151,11 @@ def test_issue_invoice_from_sale_history(client, db_session):
     from app.models import Sale
 
     sale = db_session.query(Sale).order_by(Sale.id.desc()).first()
-    response = client.post(f"/vendas/{sale.id}/emitir-nf", follow_redirects=False)
+    response = client.post(
+        f"/vendas/{sale.id}/emitir-nf",
+        data={"csrf_token": csrf_token(client, "/vendas")},
+        follow_redirects=False,
+    )
     assert response.status_code == 303
     assert response.headers["location"].startswith("/notas/")
 
@@ -154,6 +175,7 @@ def test_admin_can_register_service_issue_invoice_and_charge(client, db_session)
     response = client.post(
         "/servicos",
         data={
+            "csrf_token": csrf_token(client, "/servicos"),
             "description": "Plastificacao de documento",
             "amount": "35.90",
             "payment_method": "pix",
@@ -175,7 +197,11 @@ def test_admin_can_register_service_issue_invoice_and_charge(client, db_session)
     assert charge_page.status_code == 200
     assert "Pix copia e cola" in charge_page.text
 
-    invoice_response = client.post(f"/servicos/{service.id}/emitir-nf", follow_redirects=False)
+    invoice_response = client.post(
+        f"/servicos/{service.id}/emitir-nf",
+        data={"csrf_token": csrf_token(client, "/servicos")},
+        follow_redirects=False,
+    )
     assert invoice_response.status_code == 303
     assert invoice_response.headers["location"].startswith("/notas-servico/")
 

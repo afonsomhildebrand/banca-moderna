@@ -9,6 +9,7 @@
 <section class="panel">
   <h2>Registrar compra</h2>
   <form method="post" class="form-grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Fornecedor
       <select name="supplier_id" required>
         {% for supplier in suppliers %}

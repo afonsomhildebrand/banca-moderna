@@ -39,7 +39,7 @@ MYSQL_USER=banca_user
 MYSQL_PASSWORD=banca_password
 MYSQL_ROOT_PASSWORD=root_password
 DATABASE_URL=mysql+pymysql://banca_user:banca_password@db:3306/banca_moderna
-APP_SECRET_KEY=troque-esta-chave
+APP_SECRET_KEY=gere-uma-chave-longa-e-aleatoria-antes-de-usar
 ```
 
 Recomendacao:
@@ -148,4 +148,3 @@ Para uso em producao real:
 - Configurar HTTPS via proxy reverso.
 - Restringir acesso ao Adminer.
 - Avaliar integracao fiscal oficial se houver emissao NF-e/NFC-e.
-

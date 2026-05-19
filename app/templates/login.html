@@ -15,6 +15,7 @@
       </div>
       {% if error %}<div class="alert">{{ error }}</div>{% endif %}
       <form method="post" class="login-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label>E-mail<input name="email" type="email" value="admin@bancamoderna.local" required autofocus></label>
         <label>Senha<input name="password" type="password" required></label>
         <button type="submit">Entrar</button>
