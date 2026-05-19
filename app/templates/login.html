@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login - Banca Moderna</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="login-body">
+  <main class="login-shell">
+    <section class="login-panel">
+      <div class="login-brand">
+        <strong>Banca Moderna</strong>
+        <span>Acesso ao sistema</span>
+      </div>
+      {% if error %}<div class="alert">{{ error }}</div>{% endif %}
+      <form method="post" class="login-form">
+        <label>E-mail<input name="email" type="email" value="admin@bancamoderna.local" required autofocus></label>
+        <label>Senha<input name="password" type="password" required></label>
+        <button type="submit">Entrar</button>
+      </form>
+      <p class="login-hint">Usuario inicial: admin@bancamoderna.local / admin123</p>
+    </section>
+  </main>
+</body>
+</html>

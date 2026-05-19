@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}NF {{ invoice.series }}-{{ "%06d"|format(invoice.number) }} - Banca Moderna{% endblock %}
+{% block heading %}Nota Fiscal{% endblock %}
+{% block subheading %}Documento de venda emitido pelo sistema.{% endblock %}
+
+{% block content %}
+<section class="panel invoice-actions">
+  <a class="button-link" href="/vendas">Voltar para vendas</a>
+  <button type="button" onclick="window.print()">Imprimir</button>
+</section>
+
+<section class="invoice-document">
+  <header class="invoice-header">
+    <div>
+      <h2>{{ invoice.issuer_name }}</h2>
+      <p>Documento interno de venda</p>
+      {% if invoice.issuer_document %}<p>Documento: {{ invoice.issuer_document }}</p>{% endif %}
+    </div>
+    <div>
+      <strong>NF {{ invoice.series }}-{{ "%06d"|format(invoice.number) }}</strong>
+      <span>Status: {{ invoice.status }}</span>
+      <span>Emissao: {{ invoice.issued_at.strftime("%d/%m/%Y %H:%M") }}</span>
+    </div>
+  </header>
+
+  <div class="invoice-key">
+    <span>Chave interna</span>
+    <strong>{{ invoice.access_key }}</strong>
+  </div>
+
+  <div class="invoice-parties">
+    <div>
+      <h3>Cliente</h3>
+      <p>{{ invoice.sale.customer.name if invoice.sale.customer else "Cliente nao identificado" }}</p>
+      {% if invoice.sale.customer and invoice.sale.customer.document %}<p>Documento: {{ invoice.sale.customer.document }}</p>{% endif %}
+    </div>
+    <div>
+      <h3>Venda</h3>
+      <p>Venda #{{ invoice.sale.id }}</p>
+      <p>Pagamento: {{ invoice.sale.payment_method }}</p>
+      <p>Vendedor: {{ invoice.sale.employee_name or "-" }}</p>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>Item</th><th>SKU</th><th>Qtd.</th><th>Unitario</th><th>Total</th></tr></thead>
+    <tbody>
+      {% for item in invoice.sale.items %}
+      <tr>
+        <td>{{ item.product.name }}</td>
+        <td>{{ item.product.sku }}</td>
+        <td>{{ item.quantity }}</td>
+        <td>R$ {{ "%.2f"|format(item.unit_price) }}</td>
+        <td>R$ {{ "%.2f"|format(item.total) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="invoice-totals">
+    <p><span>Subtotal</span><strong>R$ {{ "%.2f"|format(invoice.sale.subtotal) }}</strong></p>
+    <p><span>Desconto</span><strong>R$ {{ "%.2f"|format(invoice.sale.discount) }}</strong></p>
+    <p><span>Total</span><strong>R$ {{ "%.2f"|format(invoice.sale.total) }}</strong></p>
+  </div>
+
+  <footer>
+    <p>{{ invoice.notes }}</p>
+  </footer>
+</section>
+{% endblock %}

@@ -1,0 +1,16 @@
+.git
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+env/
+*.zip
+*.docx
+BancaModerna_Docker_Standalone/
+render_docx_qa/
+mysql_data/

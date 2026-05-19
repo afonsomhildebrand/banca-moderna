@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Usuarios - Banca Moderna{% endblock %}
+{% block heading %}Usuarios{% endblock %}
+{% block subheading %}Controle de acesso, perfis e usuarios ativos.{% endblock %}
+
+{% block content %}
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+<section class="panel">
+  <h2>Novo usuario</h2>
+  <form method="post" class="form-grid">
+    <label>Nome<input name="name" required></label>
+    <label>E-mail<input name="email" type="email" required></label>
+    <label>Senha<input name="password" type="password" minlength="6" required></label>
+    <label>Perfil
+      <select name="role">
+        {% for role, label in roles.items() %}
+        <option value="{{ role }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="checkline"><input name="active" type="checkbox" checked> Ativo</label>
+    <button type="submit">Salvar usuario</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Niveis de acesso</h2>
+  <table>
+    <thead><tr><th>Perfil</th><th>Acesso principal</th></tr></thead>
+    <tbody>
+      <tr><td>Administrador</td><td>Acesso total, usuarios, cadastros, compras, vendas e estoque.</td></tr>
+      <tr><td>Funcionario</td><td>Acesso somente ao menu Vendas, com permissao para registrar vendas.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="panel">
+  <h2>Usuarios cadastrados</h2>
+  <table>
+    <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th><th>Acao</th></tr></thead>
+    <tbody>
+      {% for user in users %}
+      <tr>
+        <td>{{ user.name }}</td>
+        <td>{{ user.email }}</td>
+        <td>{{ roles.get(user.role, user.role) }}</td>
+        <td>{% if user.active %}<span class="tag ok">ativo</span>{% else %}<span class="tag danger">inativo</span>{% endif %}</td>
+        <td>
+          {% if user.id != current_user.id %}
+          <form method="post" action="/usuarios/{{ user.id }}/alternar-status" class="inline-form">
+            <button type="submit" class="secondary">{% if user.active %}Desativar{% else %}Ativar{% endif %}</button>
+          </form>
+          {% else %}
+          Usuario atual
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Nenhum usuario cadastrado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

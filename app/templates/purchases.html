@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Compras - Banca Moderna{% endblock %}
+{% block heading %}Compras{% endblock %}
+{% block subheading %}Entrada de mercadorias com atualizacao automatica de estoque.{% endblock %}
+
+{% block content %}
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+{% if can("purchases.create") %}
+<section class="panel">
+  <h2>Registrar compra</h2>
+  <form method="post" class="form-grid">
+    <label>Fornecedor
+      <select name="supplier_id" required>
+        {% for supplier in suppliers %}
+        <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Produto
+      <select name="product_id" required>
+        {% for product in products %}
+        <option value="{{ product.id }}">{{ product.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Quantidade<input name="quantity" type="number" min="1" value="1" required></label>
+    <label>Custo unitario<input name="unit_cost" type="number" step="0.01" value="0" required></label>
+    <label>Documento<input name="document_number"></label>
+    <button type="submit">Confirmar compra</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>Compras registradas</h2>
+  <table>
+    <thead><tr><th>#</th><th>Fornecedor</th><th>Total</th><th>Status</th><th>Data</th></tr></thead>
+    <tbody>
+      {% for purchase in purchases %}
+      <tr><td>{{ purchase.id }}</td><td>{{ purchase.supplier.name }}</td><td>R$ {{ "%.2f"|format(purchase.total) }}</td><td>{{ purchase.status.value }}</td><td>{{ purchase.created_at.strftime("%d/%m/%Y %H:%M") }}</td></tr>
+      {% else %}
+      <tr><td colspan="5">Nenhuma compra registrada.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

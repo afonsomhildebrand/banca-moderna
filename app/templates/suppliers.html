@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Fornecedores - Banca Moderna{% endblock %}
+{% block heading %}Fornecedores{% endblock %}
+{% block subheading %}Fornecedores nacionais e internacionais.{% endblock %}
+
+{% block content %}
+{% if can("suppliers.create") %}
+<section class="panel">
+  <h2>Novo fornecedor</h2>
+  <form method="post" class="form-grid">
+    <label>Nome<input name="name" required></label>
+    <label>Documento<input name="document"></label>
+    <label>Pais<input name="country" value="Brasil"></label>
+    <label>Moeda<input name="currency" value="BRL"></label>
+    <label>Telefone<input name="phone"></label>
+    <label>E-mail<input name="email" type="email"></label>
+    <button type="submit">Salvar fornecedor</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>Fornecedores cadastrados</h2>
+  <table>
+    <thead><tr><th>Nome</th><th>Pais</th><th>Moeda</th><th>Telefone</th><th>E-mail</th></tr></thead>
+    <tbody>
+      {% for supplier in suppliers %}
+      <tr><td>{{ supplier.name }}</td><td>{{ supplier.country }}</td><td>{{ supplier.currency }}</td><td>{{ supplier.phone or "" }}</td><td>{{ supplier.email or "" }}</td></tr>
+      {% else %}
+      <tr><td colspan="5">Nenhum fornecedor cadastrado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

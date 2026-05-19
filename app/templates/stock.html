@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Estoque - Banca Moderna{% endblock %}
+{% block heading %}Estoque{% endblock %}
+{% block subheading %}Saldos e historico de movimentacoes.{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <h2>Saldos atuais</h2>
+  <table>
+    <thead><tr><th>Produto</th><th>Tipo</th><th>Saldo</th><th>Minimo</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for product in products %}
+      <tr>
+        <td>{{ product.name }}</td>
+        <td>{{ product.kind.value }}</td>
+        <td>{{ product.quantity_on_hand }}</td>
+        <td>{{ product.min_quantity }}</td>
+        <td>{% if product.quantity_on_hand <= product.min_quantity %}<span class="tag danger">baixo</span>{% else %}<span class="tag ok">ok</span>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Nenhum produto cadastrado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="panel">
+  <h2>Movimentacoes</h2>
+  <table>
+    <thead><tr><th>Data</th><th>Produto</th><th>Tipo</th><th>Quantidade</th><th>Referencia</th></tr></thead>
+    <tbody>
+      {% for movement in movements %}
+      <tr>
+        <td>{{ movement.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
+        <td>{{ movement.product.name }}</td>
+        <td>{{ movement.movement_type.value }}</td>
+        <td>{{ movement.quantity }}</td>
+        <td>{{ movement.reference_type or "" }} #{{ movement.reference_id or "" }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Nenhuma movimentacao registrada.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

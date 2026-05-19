@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Banca Moderna{% endblock %}
+{% block heading %}Dashboard{% endblock %}
+{% block subheading %}Resumo rapido da operacao da banca.{% endblock %}
+
+{% block content %}
+<section class="metrics">
+  <article><span>Produtos</span><strong>{{ product_count }}</strong></article>
+  <article><span>Clientes</span><strong>{{ customer_count }}</strong></article>
+  <article><span>Fornecedores</span><strong>{{ supplier_count }}</strong></article>
+  <article><span>Unidades em estoque</span><strong>{{ stock_units }}</strong></article>
+  <article><span>Total vendido</span><strong>R$ {{ "%.2f"|format(sales_total) }}</strong></article>
+  <article><span>Total comprado</span><strong>R$ {{ "%.2f"|format(purchases_total) }}</strong></article>
+</section>
+
+<section class="grid two">
+  <div class="panel">
+    <h2>Estoque baixo</h2>
+    <table>
+      <thead><tr><th>Produto</th><th>Saldo</th><th>Minimo</th></tr></thead>
+      <tbody>
+        {% for product in low_stock %}
+        <tr><td>{{ product.name }}</td><td>{{ product.quantity_on_hand }}</td><td>{{ product.min_quantity }}</td></tr>
+        {% else %}
+        <tr><td colspan="3">Nenhum alerta de estoque.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Ultimas movimentacoes</h2>
+    <table>
+      <thead><tr><th>Produto</th><th>Tipo</th><th>Qtd.</th></tr></thead>
+      <tbody>
+        {% for movement in latest_movements %}
+        <tr>
+          <td>{{ movement.product.name }}</td>
+          <td>{{ movement.movement_type.value }}</td>
+          <td>{{ movement.quantity }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3">Nenhuma movimentacao registrada.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

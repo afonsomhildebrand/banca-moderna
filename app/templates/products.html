@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Produtos - Banca Moderna{% endblock %}
+{% block heading %}Produtos{% endblock %}
+{% block subheading %}Cadastre jornais, revistas, livros, figurinhas, jogos e conveniencia.{% endblock %}
+
+{% block content %}
+{% if can("products.create") %}
+<section class="panel">
+  <h2>Novo produto</h2>
+  <form method="post" class="form-grid" id="productForm">
+    <label>SKU<input name="sku" required></label>
+    <label>Codigo de barras<input id="barcodeInput" name="barcode" inputmode="numeric" autocomplete="off" placeholder="Leia ou digite o codigo"></label>
+    <label>Nome<input name="name" required></label>
+    <label>Tipo
+      <select name="kind">
+        {% for kind in kinds %}
+        <option value="{{ kind.value }}">{{ kind.value }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Categoria
+      <select name="category_id">
+        <option value="">Sem categoria</option>
+        {% for category in categories %}
+        <option value="{{ category.id }}">{{ category.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Fornecedor
+      <select name="supplier_id">
+        <option value="">Sem fornecedor</option>
+        {% for supplier in suppliers %}
+        <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Pais de origem<input name="origin_country" value="Brasil"></label>
+    <label>Custo<input name="cost_price" type="number" step="0.01" value="0"></label>
+    <label>Preco de venda<input name="sale_price" type="number" step="0.01" value="0"></label>
+    <label>Estoque inicial<input name="quantity_on_hand" type="number" value="0"></label>
+    <label>Estoque minimo<input name="min_quantity" type="number" value="0"></label>
+    <button type="submit">Salvar produto</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>Produtos cadastrados</h2>
+  <div class="form-hint">Para cadastrar com leitor, deixe o cursor em Codigo de barras e bipe o produto. O Enter do leitor avanca para o campo Nome.</div>
+  <table>
+    <thead><tr><th>SKU</th><th>Codigo</th><th>Nome</th><th>Tipo</th><th>Preco</th><th>Saldo</th><th>Min.</th></tr></thead>
+    <tbody>
+      {% for product in products %}
+      <tr>
+        <td>{{ product.sku }}</td>
+        <td>{{ product.barcode or "-" }}</td>
+        <td>{{ product.name }}</td>
+        <td>{{ product.kind.value }}</td>
+        <td>R$ {{ "%.2f"|format(product.sale_price) }}</td>
+        <td>{{ product.quantity_on_hand }}</td>
+        <td>{{ product.min_quantity }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">Nenhum produto cadastrado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<script>
+  const barcodeInput = document.querySelector("#barcodeInput");
+  const productNameInput = document.querySelector('input[name="name"]');
+
+  barcodeInput?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    productNameInput?.focus();
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+env/
+mysql_data/
+BancaModerna_Docker_Standalone/
+BancaModerna_Docker_Standalone.zip
+Definicao_Aplicativo_Banca_Moderna.docx
+render_docx_qa/

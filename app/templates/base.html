@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Banca Moderna{% endblock %}</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <strong>Banca Moderna</strong>
+      <span>{{ current_user.name }} - {{ role_labels.get(current_user.role, current_user.role) }}</span>
+    </div>
+    <nav>
+      {% for item in menu_items %}
+      <a href="{{ item.href }}">{{ item.label }}</a>
+      {% endfor %}
+    </nav>
+    <form method="post" action="/logout" class="logout-form">
+      <button type="submit" class="logout-button">Sair</button>
+    </form>
+  </aside>
+
+  <main class="content">
+    <header class="topbar">
+      <div>
+        <h1>{% block heading %}Banca Moderna{% endblock %}</h1>
+        <p>{% block subheading %}Controle de banca, conveniencia e colecionaveis.{% endblock %}</p>
+      </div>
+    </header>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

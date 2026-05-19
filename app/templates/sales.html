@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+{% block title %}Vendas - Banca Moderna{% endblock %}
+{% block heading %}Venda de Balcao{% endblock %}
+{% block subheading %}Escolha itens da banca, monte o carrinho e finalize o pagamento.{% endblock %}
+
+{% block content %}
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+{% if can("sales.create") %}
+<section class="pos-status">
+  <article>
+    <span>Produtos disponiveis</span>
+    <strong>{{ products|selectattr("quantity_on_hand", "gt", 0)|list|length }}</strong>
+  </article>
+  <article>
+    <span>Vendas registradas</span>
+    <strong>{{ sales|length }}</strong>
+  </article>
+  <article>
+    <span>Operador</span>
+    <strong>{{ current_user.name }}</strong>
+  </article>
+</section>
+
+<section class="pos-layout">
+  <div class="panel pos-products">
+    <div class="pos-catalog-header">
+      <div>
+        <h2>Catalogo de itens</h2>
+        <p>Toque no item ou bipe o codigo de barras para adicionar ao carrinho.</p>
+      </div>
+      <input id="productSearch" type="search" placeholder="Buscar produto, SKU, codigo ou tipo">
+    </div>
+    <div class="barcode-scan">
+      <label>Leitor de codigo de barras
+        <input id="barcodeScanner" type="search" inputmode="numeric" autocomplete="off" placeholder="Bipe o produto e pressione Enter" autofocus>
+      </label>
+      <span id="scanFeedback" class="scan-feedback">Pronto para leitura</span>
+    </div>
+    <div class="category-strip">
+      <button type="button" class="secondary category-filter active" data-category="">Todos</button>
+      {% for category in categories %}
+      <button type="button" class="secondary category-filter" data-category="{{ category.name|lower }}">{{ category.name }}</button>
+      {% endfor %}
+    </div>
+    <div class="product-grid" id="productGrid">
+      {% for product in products %}
+      <button
+        type="button"
+        class="product-tile"
+        data-id="{{ product.id }}"
+        data-name="{{ product.name }}"
+        data-sku="{{ product.sku }}"
+        data-barcode="{{ product.barcode or '' }}"
+        data-price="{{ product.sale_price }}"
+        data-stock="{{ product.quantity_on_hand }}"
+        data-kind="{{ product.kind.value }}"
+        data-category="{{ product.category.name|lower if product.category else '' }}"
+        data-search="{{ product.name|lower }} {{ product.sku|lower }} {{ product.barcode or '' }} {{ product.kind.value }} {{ product.category.name|lower if product.category else '' }}"
+        {% if product.quantity_on_hand <= 0 %}disabled{% endif %}
+      >
+        <span class="tile-kind">{{ product.kind.value }}</span>
+        <strong>{{ product.name }}</strong>
+        <span class="tile-sku">SKU {{ product.sku }}</span>
+        <span class="tile-stock {% if product.quantity_on_hand <= product.min_quantity %}low{% endif %}">Saldo {{ product.quantity_on_hand }}</span>
+        <b>R$ {{ "%.2f"|format(product.sale_price) }}</b>
+      </button>
+      {% else %}
+      <p class="empty-cart">Nenhum produto ativo cadastrado.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="panel pos-cart">
+    <div class="cart-title">
+      <div>
+        <h2>Venda atual</h2>
+        <p id="cartCaption">Carrinho vazio</p>
+      </div>
+      <button type="button" class="secondary" id="clearCart" disabled>Limpar</button>
+    </div>
+    <form method="post" id="saleForm">
+      <div class="cart-list" id="cartList">
+        <p class="empty-cart">Nenhum item selecionado.</p>
+      </div>
+
+      <div class="sale-fields">
+        <label>Cliente
+          <select name="customer_id">
+            <option value="">Cliente nao identificado</option>
+            {% for customer in customers %}
+            <option value="{{ customer.id }}">{{ customer.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Vendedor<input name="employee_name" value="{{ current_user.name }}"></label>
+        <label>Desconto<input id="discountInput" name="discount" type="number" min="0" step="0.01" value="0"></label>
+        <label>Pagamento
+          <select name="payment_method" id="paymentMethod">
+            <option value="dinheiro">Dinheiro</option>
+            <option value="pix">Pix</option>
+            <option value="cartao">Cartao</option>
+            <option value="fiado">Fiado</option>
+            <option value="vale">Vale</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="payment-strip" aria-label="Atalhos de pagamento">
+        <button type="button" class="payment-option active" data-payment="dinheiro">Dinheiro</button>
+        <button type="button" class="payment-option" data-payment="pix">Pix</button>
+        <button type="button" class="payment-option" data-payment="cartao">Cartao</button>
+        <button type="button" class="payment-option" data-payment="fiado">Fiado</button>
+      </div>
+
+      <div class="cart-summary">
+        <div><span>Itens</span><strong id="cartItemsCount">0</strong></div>
+        <div><span>Subtotal</span><strong id="cartSubtotal">R$ 0,00</strong></div>
+        <div><span>Total</span><strong id="cartTotal">R$ 0,00</strong></div>
+      </div>
+
+      <div id="hiddenItems"></div>
+      <button type="submit" id="finishSale" disabled>Finalizar venda</button>
+    </form>
+  </div>
+</section>
+{% endif %}
+
+<section class="panel">
+  <div class="history-header">
+    <h2>Ultimas vendas</h2>
+    <span>{{ sales|length }} registro(s)</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Cliente</th><th>Itens</th><th>Pagamento</th><th>Total</th><th>NF</th><th>Data</th></tr></thead>
+      <tbody>
+        {% for sale in sales %}
+        <tr>
+          <td>{{ sale.id }}</td>
+          <td>{{ sale.customer.name if sale.customer else "Nao identificado" }}</td>
+          <td>{{ sale.items|length }}</td>
+          <td>{{ sale.payment_method }}</td>
+          <td>R$ {{ "%.2f"|format(sale.total) }}</td>
+          <td>
+            {% if sale.invoice %}
+            <a class="table-action" href="/notas/{{ sale.invoice.id }}">NF {{ sale.invoice.series }}-{{ "%06d"|format(sale.invoice.number) }}</a>
+            {% elif can("sales.create") %}
+            <form method="post" action="/vendas/{{ sale.id }}/emitir-nf" class="inline-form">
+              <button type="submit" class="secondary">Emitir NF</button>
+            </form>
+            {% else %}
+            Pendente
+            {% endif %}
+          </td>
+          <td>{{ sale.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7">Nenhuma venda registrada.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+  const cart = new Map();
+  const productSearch = document.querySelector("#productSearch");
+  const barcodeScanner = document.querySelector("#barcodeScanner");
+  const scanFeedback = document.querySelector("#scanFeedback");
+  const productTiles = Array.from(document.querySelectorAll(".product-tile"));
+  const categoryButtons = Array.from(document.querySelectorAll(".category-filter"));
+  const cartList = document.querySelector("#cartList");
+  const hiddenItems = document.querySelector("#hiddenItems");
+  const finishSale = document.querySelector("#finishSale");
+  const discountInput = document.querySelector("#discountInput");
+  const clearCart = document.querySelector("#clearCart");
+  const cartCaption = document.querySelector("#cartCaption");
+  const paymentMethod = document.querySelector("#paymentMethod");
+  const paymentOptions = Array.from(document.querySelectorAll(".payment-option"));
+  const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+  let activeCategory = "";
+
+  function parsePrice(value) {
+    return Number(String(value).replace(",", ".")) || 0;
+  }
+
+  function renderCart() {
+    cartList.innerHTML = "";
+    hiddenItems.innerHTML = "";
+    let subtotal = 0;
+    let count = 0;
+
+    if (cart.size === 0) {
+      cartList.innerHTML = '<p class="empty-cart">Nenhum item selecionado.</p>';
+    }
+
+    for (const item of cart.values()) {
+      const lineTotal = item.price * item.quantity;
+      subtotal += lineTotal;
+      count += item.quantity;
+
+      const row = document.createElement("div");
+      row.className = "cart-row";
+      row.innerHTML = `
+        <div>
+          <strong>${item.name}</strong>
+          <span>${currency.format(item.price)} cada</span>
+        </div>
+        <div class="qty-control">
+          <button type="button" data-action="dec" data-id="${item.id}">-</button>
+          <input type="number" min="1" max="${item.stock}" value="${item.quantity}" data-action="qty" data-id="${item.id}">
+          <button type="button" data-action="inc" data-id="${item.id}">+</button>
+        </div>
+        <b>${currency.format(lineTotal)}</b>
+        <button type="button" class="remove-item" data-action="remove" data-id="${item.id}">Remover</button>
+      `;
+      cartList.appendChild(row);
+
+      hiddenItems.insertAdjacentHTML("beforeend", `
+        <input type="hidden" name="product_id" value="${item.id}">
+        <input type="hidden" name="quantity" value="${item.quantity}">
+        <input type="hidden" name="unit_price" value="${item.price.toFixed(2)}">
+      `);
+    }
+
+    const discount = parsePrice(discountInput.value);
+    const total = Math.max(0, subtotal - discount);
+    document.querySelector("#cartItemsCount").textContent = count;
+    document.querySelector("#cartSubtotal").textContent = currency.format(subtotal);
+    document.querySelector("#cartTotal").textContent = currency.format(total);
+    finishSale.disabled = cart.size === 0;
+    clearCart.disabled = cart.size === 0;
+    cartCaption.textContent = cart.size === 0 ? "Carrinho vazio" : `${count} item(ns) em ${cart.size} produto(s)`;
+  }
+
+  function addItem(tile) {
+    const id = tile.dataset.id;
+    const stock = Number(tile.dataset.stock);
+    const existing = cart.get(id);
+    if (existing) {
+      if (existing.quantity < stock) existing.quantity += 1;
+    } else {
+      cart.set(id, {
+        id,
+        name: tile.dataset.name,
+        price: parsePrice(tile.dataset.price),
+        stock,
+        quantity: 1,
+      });
+    }
+    renderCart();
+  }
+
+  function setScanFeedback(message, status) {
+    if (!scanFeedback) return;
+    scanFeedback.textContent = message;
+    scanFeedback.classList.remove("ok", "error");
+    if (status) scanFeedback.classList.add(status);
+  }
+
+  function flashScannedTile(tile) {
+    tile.classList.remove("scanned");
+    void tile.offsetWidth;
+    tile.classList.add("scanned");
+  }
+
+  function findProductByCode(code) {
+    const normalized = code.trim().toLowerCase();
+    if (!normalized) return null;
+    return productTiles.find((tile) => {
+      const barcode = (tile.dataset.barcode || "").trim().toLowerCase();
+      const sku = (tile.dataset.sku || "").trim().toLowerCase();
+      return !tile.disabled && (barcode === normalized || sku === normalized);
+    });
+  }
+
+  function scanBarcode(code) {
+    const tile = findProductByCode(code);
+    if (!tile) {
+      setScanFeedback(`Codigo ${code} nao encontrado ou sem estoque`, "error");
+      return;
+    }
+    addItem(tile);
+    flashScannedTile(tile);
+    setScanFeedback(`${tile.dataset.name} adicionado ao carrinho`, "ok");
+  }
+
+  function applyFilters() {
+    const term = (productSearch.value || "").trim().toLowerCase();
+    productTiles.forEach((tile) => {
+      const matchesText = !term || tile.dataset.search.includes(term);
+      const matchesCategory = !activeCategory || tile.dataset.category === activeCategory;
+      tile.hidden = !(matchesText && matchesCategory);
+    });
+  }
+
+  productTiles.forEach((tile) => tile.addEventListener("click", () => addItem(tile)));
+  productSearch?.addEventListener("input", applyFilters);
+  barcodeScanner?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const code = barcodeScanner.value.trim();
+    if (!code) return;
+    scanBarcode(code);
+    barcodeScanner.value = "";
+    barcodeScanner.focus();
+  });
+  discountInput.addEventListener("input", renderCart);
+  clearCart.addEventListener("click", () => {
+    cart.clear();
+    renderCart();
+  });
+  paymentOptions.forEach((button) => {
+    button.addEventListener("click", () => {
+      paymentOptions.forEach((item) => item.classList.remove("active"));
+      button.classList.add("active");
+      paymentMethod.value = button.dataset.payment;
+    });
+  });
+  paymentMethod.addEventListener("change", () => {
+    paymentOptions.forEach((button) => {
+      button.classList.toggle("active", button.dataset.payment === paymentMethod.value);
+    });
+  });
+  categoryButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      categoryButtons.forEach((item) => item.classList.remove("active"));
+      button.classList.add("active");
+      activeCategory = button.dataset.category;
+      applyFilters();
+    });
+  });
+
+  cartList.addEventListener("click", (event) => {
+    const target = event.target;
+    const action = target.dataset.action;
+    const id = target.dataset.id;
+    if (!action || !id || !cart.has(id)) return;
+    const item = cart.get(id);
+    if (action === "inc" && item.quantity < item.stock) item.quantity += 1;
+    if (action === "dec") item.quantity -= 1;
+    if (action === "remove" || item.quantity <= 0) cart.delete(id);
+    renderCart();
+  });
+
+  cartList.addEventListener("input", (event) => {
+    const target = event.target;
+    if (target.dataset.action !== "qty" || !cart.has(target.dataset.id)) return;
+    const item = cart.get(target.dataset.id);
+    item.quantity = Math.max(1, Math.min(item.stock, Number(target.value) || 1));
+    renderCart();
+  });
+</script>
+{% endblock %}
