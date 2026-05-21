@@ -2,7 +2,7 @@ from decimal import Decimal
 from re import search
 from urllib.parse import urlencode
 
-from app.models import Customer, PaymentCharge, Product, ProductKind, ServiceOrder, Supplier, User
+from app.models import Customer, PaymentCharge, Product, ProductKind, Purchase, Sale, ServiceOrder, Supplier, User
 from app.security import hash_password
 
 
@@ -271,6 +271,151 @@ def test_admin_can_update_user_registration_and_password(client, db_session):
 
     client.post("/logout", data={"csrf_token": csrf_token(client, "/")}, follow_redirects=False)
     assert login(client, "operador-novo@example.com", "SenhaForte123").status_code == 303
+
+
+def test_admin_can_update_purchase_and_adjust_stock(client, db_session):
+    login(client)
+    supplier = Supplier(name="Fornecedor Compra", country="Brasil", currency="BRL")
+    product = Product(
+        sku="COMPRA-EDIT-001",
+        name="Produto Compra",
+        kind=ProductKind.other,
+        cost_price=Decimal("1.00"),
+        sale_price=Decimal("5.00"),
+        quantity_on_hand=0,
+        min_quantity=1,
+    )
+    db_session.add_all([supplier, product])
+    db_session.commit()
+
+    create_response = client.post(
+        "/compras",
+        data={
+            "csrf_token": csrf_token(client, "/compras"),
+            "supplier_id": str(supplier.id),
+            "product_id": str(product.id),
+            "quantity": "2",
+            "unit_cost": "3.00",
+            "document_number": "NF-1",
+        },
+        follow_redirects=False,
+    )
+    assert create_response.status_code == 303
+    purchase = db_session.query(Purchase).filter(Purchase.document_number == "NF-1").one()
+    db_session.refresh(product)
+    assert product.quantity_on_hand == 2
+
+    update_response = client.post(
+        f"/compras/{purchase.id}/editar",
+        data={
+            "csrf_token": csrf_token(client, "/compras"),
+            "supplier_id": str(supplier.id),
+            "product_id": str(product.id),
+            "quantity": "5",
+            "unit_cost": "4.50",
+            "document_number": "NF-1-EDIT",
+        },
+        follow_redirects=False,
+    )
+
+    assert update_response.status_code == 303
+    db_session.refresh(product)
+    db_session.refresh(purchase)
+    assert product.quantity_on_hand == 5
+    assert product.cost_price == Decimal("4.50")
+    assert purchase.document_number == "NF-1-EDIT"
+    assert purchase.total == Decimal("22.50")
+    assert purchase.items[0].quantity == 5
+
+
+def test_admin_can_update_sale_payment_and_discount(client, db_session):
+    login(client)
+    product = Product(
+        sku="VENDA-EDIT-001",
+        name="Produto Venda Editavel",
+        kind=ProductKind.other,
+        sale_price=Decimal("10.00"),
+        cost_price=Decimal("4.00"),
+        quantity_on_hand=5,
+        min_quantity=1,
+    )
+    db_session.add(product)
+    db_session.commit()
+    db_session.refresh(product)
+
+    sale_response = post_sale(client, product.id, 2, "10.00", "0", payment_method="pix")
+    assert sale_response.status_code == 303
+    sale = db_session.query(Sale).order_by(Sale.id.desc()).first()
+    assert sale.total == Decimal("20.00")
+    assert sale.charges[0].method == "pix"
+
+    update_response = client.post(
+        f"/vendas/{sale.id}/editar",
+        data={
+            "csrf_token": csrf_token(client, "/vendas"),
+            "customer_id": "",
+            "employee_name": "Operador Editado",
+            "discount": "3.50",
+            "payment_method": "dinheiro",
+        },
+        follow_redirects=False,
+    )
+
+    assert update_response.status_code == 303
+    db_session.refresh(sale)
+    assert sale.employee_name == "Operador Editado"
+    assert sale.discount == Decimal("3.50")
+    assert sale.total == Decimal("16.50")
+    assert sale.payment_method == "dinheiro"
+    assert sale.charges == []
+
+
+def test_admin_can_update_service_and_charge(client, db_session):
+    login(client)
+    response = client.post(
+        "/servicos",
+        data={
+            "csrf_token": csrf_token(client, "/servicos"),
+            "description": "Servico Editavel",
+            "amount": "20.00",
+            "payment_method": "pix",
+            "customer_id": "",
+            "employee_name": "Admin",
+            "due_date": "",
+            "card_brand": "",
+            "installments": "1",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    service = db_session.query(ServiceOrder).filter(ServiceOrder.description == "Servico Editavel").one()
+    assert service.charges[0].method == "pix"
+
+    update_response = client.post(
+        f"/servicos/{service.id}/editar",
+        data={
+            "csrf_token": csrf_token(client, "/servicos"),
+            "description": "Servico Editado",
+            "amount": "45.75",
+            "payment_method": "boleto",
+            "customer_id": "",
+            "employee_name": "Tecnico Editado",
+            "due_date": "2026-05-20",
+            "card_brand": "",
+            "installments": "1",
+        },
+        follow_redirects=False,
+    )
+
+    assert update_response.status_code == 303
+    db_session.refresh(service)
+    assert service.description == "Servico Editado"
+    assert service.amount == Decimal("45.75")
+    assert service.payment_method == "boleto"
+    assert service.employee_name == "Tecnico Editado"
+    assert service.charges[0].method == "boleto"
+    assert service.charges[0].amount == Decimal("45.75")
+    assert service.charges[0].digitable_line
 
 
 def test_issue_invoice_from_sale_history(client, db_session):

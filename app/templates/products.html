@@ -88,7 +88,7 @@
           <form id="product-{{ product.id }}" method="post" action="/produtos/{{ product.id }}/editar" class="inline-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="origin_country" value="{{ product.origin_country }}">
-            <button type="submit" class="secondary">Salvar</button>
+            <button type="submit" class="secondary">Editar</button>
           </form>
         </td>
       </tr>

@@ -26,10 +26,13 @@ from app.models import (
     Product,
     ProductKind,
     Purchase,
+    PurchaseItem,
     Sale,
+    SaleItem,
     ServiceInvoice,
     ServiceOrder,
     StockMovement,
+    StockMovementType,
     Supplier,
     User,
 )
@@ -235,6 +238,66 @@ def users_context(request: Request, current_user: User, db: Session, error: str 
         users=db.query(User).order_by(User.name).all(),
         roles=ROLE_LABELS,
         error=error,
+    )
+
+
+def purchases_context(request: Request, current_user: User, db: Session, error: str | None = None):
+    return template_context(
+        request,
+        current_user,
+        purchases=db.query(Purchase).order_by(desc(Purchase.created_at)).all(),
+        products=db.query(Product).filter(Product.active.is_(True)).order_by(Product.name).all(),
+        suppliers=db.query(Supplier).order_by(Supplier.name).all(),
+        error=error,
+    )
+
+
+def sales_context(request: Request, current_user: User, db: Session, error: str | None = None):
+    return template_context(
+        request,
+        current_user,
+        sales=db.query(Sale).order_by(desc(Sale.created_at)).all(),
+        products=db.query(Product).filter(Product.active.is_(True)).order_by(Product.name).all(),
+        customers=db.query(Customer).order_by(Customer.name).all(),
+        categories=db.query(Category).filter(Category.active.is_(True)).order_by(Category.name).all(),
+        error=error,
+    )
+
+
+def services_context(request: Request, current_user: User, db: Session, error: str | None = None):
+    return template_context(
+        request,
+        current_user,
+        services=db.query(ServiceOrder).order_by(desc(ServiceOrder.created_at)).all(),
+        customers=db.query(Customer).order_by(Customer.name).all(),
+        error=error,
+    )
+
+
+def replace_sale_charges(db: Session, sale: Sale) -> None:
+    sale.charges.clear()
+    db.flush()
+    create_payment_charge(db, sale=sale, amount=sale.total, method=sale.payment_method)
+
+
+def replace_service_charges(
+    db: Session,
+    service_order: ServiceOrder,
+    *,
+    due_date: str | None,
+    card_brand: str | None,
+    installments: int,
+) -> None:
+    service_order.charges.clear()
+    db.flush()
+    create_payment_charge(
+        db,
+        service_order=service_order,
+        amount=service_order.amount,
+        method=service_order.payment_method,
+        due_date=parse_optional_date(due_date),
+        card_brand=card_brand,
+        installments=installments,
     )
 
 
@@ -574,19 +637,9 @@ def purchases(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("purchases.view")),
 ):
-    rows = db.query(Purchase).order_by(desc(Purchase.created_at)).all()
-    products = db.query(Product).filter(Product.active.is_(True)).order_by(Product.name).all()
-    suppliers = db.query(Supplier).order_by(Supplier.name).all()
     return templates.TemplateResponse(
         "purchases.html",
-        template_context(
-            request,
-            current_user,
-            purchases=rows,
-            products=products,
-            suppliers=suppliers,
-            error=None,
-        ),
+        purchases_context(request, current_user, db),
     )
 
 
@@ -607,19 +660,82 @@ def create_purchase(
         db.refresh(purchase)
     except (StockError, ValueError) as exc:
         error = rollback_error(db, exc)
-        products = db.query(Product).filter(Product.active.is_(True)).order_by(Product.name).all()
-        suppliers = db.query(Supplier).order_by(Supplier.name).all()
-        rows = db.query(Purchase).order_by(desc(Purchase.created_at)).all()
         return templates.TemplateResponse(
             "purchases.html",
-            template_context(
-                request,
-                current_user,
-                purchases=rows,
-                products=products,
-                suppliers=suppliers,
-                error=error,
-            ),
+            purchases_context(request, current_user, db, error),
+            status_code=400,
+        )
+    return redirect("/compras")
+
+
+@app.post("/compras/{purchase_id}/editar")
+def update_purchase(
+    request: Request,
+    purchase_id: int,
+    supplier_id: int = Form(...),
+    product_id: int = Form(...),
+    quantity: int = Form(...),
+    unit_cost: str = Form(...),
+    document_number: str | None = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("purchases.create")),
+):
+    try:
+        purchase = db.get(Purchase, purchase_id)
+        if purchase is None or not purchase.items:
+            raise StockError("Compra nao encontrada.")
+        if quantity <= 0:
+            raise StockError("A quantidade da compra deve ser maior que zero.")
+        new_cost = money(unit_cost)
+        if new_cost < 0:
+            raise StockError("O custo unitario nao pode ser negativo.")
+
+        item = purchase.items[0]
+        old_product = db.get(Product, item.product_id, with_for_update=True)
+        new_product = db.get(Product, product_id, with_for_update=True)
+        if old_product is None or new_product is None:
+            raise StockError("Produto nao encontrado.")
+
+        if old_product.id == new_product.id:
+            new_balance = old_product.quantity_on_hand - item.quantity + quantity
+            if new_balance < 0:
+                raise StockError("A alteracao deixaria o estoque negativo.")
+            old_product.quantity_on_hand = new_balance
+        else:
+            if old_product.quantity_on_hand < item.quantity:
+                raise StockError("Nao ha saldo suficiente para remover a entrada antiga.")
+            old_product.quantity_on_hand -= item.quantity
+            new_product.quantity_on_hand += quantity
+
+        total = money(new_cost * quantity)
+        purchase.supplier_id = supplier_id
+        purchase.document_number = document_number
+        purchase.total = total
+        item.product_id = product_id
+        item.quantity = quantity
+        item.unit_cost = new_cost
+        item.total = total
+        new_product.cost_price = new_cost
+        db.query(StockMovement).filter(
+            StockMovement.reference_type == "purchase",
+            StockMovement.reference_id == purchase.id,
+        ).delete(synchronize_session=False)
+        db.add(
+            StockMovement(
+                product_id=product_id,
+                movement_type=StockMovementType.purchase,
+                quantity=quantity,
+                unit_cost=new_cost,
+                reference_type="purchase",
+                reference_id=purchase.id,
+                notes="Entrada por compra editada",
+            )
+        )
+        commit_or_error(db, "Nao foi possivel editar a compra.")
+    except (StockError, ValueError) as exc:
+        return templates.TemplateResponse(
+            "purchases.html",
+            purchases_context(request, current_user, db, rollback_error(db, exc)),
             status_code=400,
         )
     return redirect("/compras")
@@ -631,21 +747,9 @@ def sales(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("sales.view")),
 ):
-    rows = db.query(Sale).order_by(desc(Sale.created_at)).all()
-    products = db.query(Product).filter(Product.active.is_(True)).order_by(Product.name).all()
-    customers = db.query(Customer).order_by(Customer.name).all()
-    categories = db.query(Category).filter(Category.active.is_(True)).order_by(Category.name).all()
     return templates.TemplateResponse(
         "sales.html",
-        template_context(
-            request,
-            current_user,
-            sales=rows,
-            products=products,
-            customers=customers,
-            categories=categories,
-            error=None,
-        ),
+        sales_context(request, current_user, db),
     )
 
 
@@ -682,21 +786,48 @@ def create_sale(
         db.refresh(sale)
     except (StockError, ValueError) as exc:
         error = rollback_error(db, exc)
-        rows = db.query(Sale).order_by(desc(Sale.created_at)).all()
-        products = db.query(Product).filter(Product.active.is_(True)).order_by(Product.name).all()
-        customers = db.query(Customer).order_by(Customer.name).all()
-        categories = db.query(Category).filter(Category.active.is_(True)).order_by(Category.name).all()
         return templates.TemplateResponse(
             "sales.html",
-            template_context(
-                request,
-                current_user,
-                sales=rows,
-                products=products,
-                customers=customers,
-                categories=categories,
-                error=error,
-            ),
+            sales_context(request, current_user, db, error),
+            status_code=400,
+        )
+    return redirect("/vendas")
+
+
+@app.post("/vendas/{sale_id}/editar")
+def update_sale(
+    request: Request,
+    sale_id: int,
+    discount: str = Form("0"),
+    payment_method: str = Form("dinheiro"),
+    customer_id: str | None = Form(None),
+    employee_name: str | None = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("sales.create")),
+):
+    try:
+        sale = db.get(Sale, sale_id)
+        if sale is None:
+            raise StockError("Venda nao encontrada.")
+        new_discount = money(discount)
+        if new_discount < 0:
+            raise StockError("O desconto nao pode ser negativo.")
+        subtotal = money(sum((item.unit_price * item.quantity for item in sale.items), Decimal("0")))
+        total = money(subtotal - new_discount)
+        if total < 0:
+            raise StockError("O desconto nao pode ser maior que o subtotal.")
+        sale.customer_id = int(customer_id) if customer_id else None
+        sale.employee_name = employee_name
+        sale.discount = new_discount
+        sale.subtotal = subtotal
+        sale.total = total
+        sale.payment_method = payment_method
+        replace_sale_charges(db, sale)
+        commit_or_error(db, "Nao foi possivel editar a venda.")
+    except (StockError, ValueError) as exc:
+        return templates.TemplateResponse(
+            "sales.html",
+            sales_context(request, current_user, db, rollback_error(db, exc)),
             status_code=400,
         )
     return redirect("/vendas")
@@ -737,11 +868,9 @@ def services_page(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("services.view")),
 ):
-    rows = db.query(ServiceOrder).order_by(desc(ServiceOrder.created_at)).all()
-    customers = db.query(Customer).order_by(Customer.name).all()
     return templates.TemplateResponse(
         "services.html",
-        template_context(request, current_user, services=rows, customers=customers, error=None),
+        services_context(request, current_user, db),
     )
 
 
@@ -775,11 +904,55 @@ def create_service_order(
         db.refresh(service_order)
     except (StockError, ValueError) as exc:
         error = rollback_error(db, exc)
-        rows = db.query(ServiceOrder).order_by(desc(ServiceOrder.created_at)).all()
-        customers = db.query(Customer).order_by(Customer.name).all()
         return templates.TemplateResponse(
             "services.html",
-            template_context(request, current_user, services=rows, customers=customers, error=error),
+            services_context(request, current_user, db, error),
+            status_code=400,
+        )
+    return redirect("/servicos")
+
+
+@app.post("/servicos/{service_id}/editar")
+def update_service_order(
+    request: Request,
+    service_id: int,
+    description: str = Form(...),
+    amount: str = Form(...),
+    payment_method: str = Form("pix"),
+    customer_id: str | None = Form(None),
+    employee_name: str | None = Form(None),
+    due_date: str | None = Form(None),
+    card_brand: str | None = Form(None),
+    installments: int = Form(1),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("services.create")),
+):
+    try:
+        service_order = db.get(ServiceOrder, service_id)
+        if service_order is None:
+            raise StockError("Servico nao encontrado.")
+        service_amount = money(amount)
+        if service_amount <= 0:
+            raise StockError("O valor do servico deve ser maior que zero.")
+        if not description.strip():
+            raise StockError("Informe a descricao do servico.")
+        service_order.customer_id = int(customer_id) if customer_id else None
+        service_order.description = description.strip()
+        service_order.employee_name = employee_name
+        service_order.amount = service_amount
+        service_order.payment_method = payment_method
+        replace_service_charges(
+            db,
+            service_order,
+            due_date=due_date,
+            card_brand=card_brand,
+            installments=installments,
+        )
+        commit_or_error(db, "Nao foi possivel editar o servico.")
+    except (StockError, ValueError) as exc:
+        return templates.TemplateResponse(
+            "services.html",
+            services_context(request, current_user, db, rollback_error(db, exc)),
             status_code=400,
         )
     return redirect("/servicos")

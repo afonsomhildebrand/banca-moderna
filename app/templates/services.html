@@ -47,15 +47,31 @@
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>#</th><th>Cliente</th><th>Servico</th><th>Pagamento</th><th>Valor</th><th>Cobranca</th><th>NF Servico</th><th>Data</th></tr></thead>
+      <thead><tr><th>#</th><th>Cliente</th><th>Servico</th><th>Responsavel</th><th>Pagamento</th><th>Valor</th><th>Cobranca</th><th>NF Servico</th><th>Data</th><th>Acoes</th></tr></thead>
       <tbody>
         {% for service in services %}
         <tr>
           <td>{{ service.id }}</td>
-          <td>{{ service.customer.name if service.customer else "Nao identificado" }}</td>
-          <td>{{ service.description }}</td>
-          <td>{{ service.payment_method }}</td>
-          <td>R$ {{ "%.2f"|format(service.amount) }}</td>
+          <td>
+            <select form="service-{{ service.id }}" name="customer_id">
+              <option value="">Nao identificado</option>
+              {% for customer in customers %}
+              <option value="{{ customer.id }}" {% if service.customer_id == customer.id %}selected{% endif %}>{{ customer.name }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td><input form="service-{{ service.id }}" name="description" value="{{ service.description }}" required></td>
+          <td><input form="service-{{ service.id }}" name="employee_name" value="{{ service.employee_name or '' }}"></td>
+          <td>
+            <select form="service-{{ service.id }}" name="payment_method">
+              <option value="pix" {% if service.payment_method == "pix" %}selected{% endif %}>Pix</option>
+              <option value="boleto" {% if service.payment_method == "boleto" %}selected{% endif %}>Boleto</option>
+              <option value="debito" {% if service.payment_method == "debito" %}selected{% endif %}>Debito</option>
+              <option value="credito" {% if service.payment_method == "credito" %}selected{% endif %}>Credito</option>
+              <option value="dinheiro" {% if service.payment_method == "dinheiro" %}selected{% endif %}>Dinheiro</option>
+            </select>
+          </td>
+          <td><input form="service-{{ service.id }}" name="amount" type="number" min="0.01" step="0.01" value="{{ '%.2f'|format(service.amount) }}" required></td>
           <td>
             {% if service.charges %}
             <a class="table-action" href="/cobrancas/{{ service.charges[-1].id }}">{{ service.charges[-1].reference }}</a>
@@ -76,9 +92,20 @@
             {% endif %}
           </td>
           <td>{{ service.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
+          <td>
+            {% if can("services.create") %}
+            <form id="service-{{ service.id }}" method="post" action="/servicos/{{ service.id }}/editar" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="due_date" value="{{ service.charges[-1].due_date if service.charges and service.charges[-1].due_date else '' }}">
+              <input type="hidden" name="card_brand" value="{{ service.charges[-1].card_brand if service.charges else '' }}">
+              <input type="hidden" name="installments" value="{{ service.charges[-1].installments if service.charges else 1 }}">
+              <button type="submit" class="secondary">Editar</button>
+            </form>
+            {% endif %}
+          </td>
         </tr>
         {% else %}
-        <tr><td colspan="8">Nenhum servico registrado.</td></tr>
+        <tr><td colspan="10">Nenhum servico registrado.</td></tr>
         {% endfor %}
       </tbody>
     </table>

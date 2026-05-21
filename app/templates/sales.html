@@ -135,14 +135,33 @@
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>#</th><th>Cliente</th><th>Itens</th><th>Pagamento</th><th>Total</th><th>Cobranca</th><th>NF</th><th>Data</th></tr></thead>
+      <thead><tr><th>#</th><th>Cliente</th><th>Itens</th><th>Vendedor</th><th>Desconto</th><th>Pagamento</th><th>Total</th><th>Cobranca</th><th>NF</th><th>Data</th><th>Acoes</th></tr></thead>
       <tbody>
         {% for sale in sales %}
         <tr>
           <td>{{ sale.id }}</td>
-          <td>{{ sale.customer.name if sale.customer else "Nao identificado" }}</td>
+          <td>
+            <select form="sale-{{ sale.id }}" name="customer_id">
+              <option value="">Nao identificado</option>
+              {% for customer in customers %}
+              <option value="{{ customer.id }}" {% if sale.customer_id == customer.id %}selected{% endif %}>{{ customer.name }}</option>
+              {% endfor %}
+            </select>
+          </td>
           <td>{{ sale.items|length }}</td>
-          <td>{{ sale.payment_method }}</td>
+          <td><input form="sale-{{ sale.id }}" name="employee_name" value="{{ sale.employee_name or '' }}"></td>
+          <td><input form="sale-{{ sale.id }}" name="discount" type="number" min="0" step="0.01" value="{{ '%.2f'|format(sale.discount) }}"></td>
+          <td>
+            <select form="sale-{{ sale.id }}" name="payment_method">
+              <option value="dinheiro" {% if sale.payment_method == "dinheiro" %}selected{% endif %}>Dinheiro</option>
+              <option value="pix" {% if sale.payment_method == "pix" %}selected{% endif %}>Pix</option>
+              <option value="boleto" {% if sale.payment_method == "boleto" %}selected{% endif %}>Boleto</option>
+              <option value="debito" {% if sale.payment_method == "debito" %}selected{% endif %}>Debito</option>
+              <option value="credito" {% if sale.payment_method == "credito" %}selected{% endif %}>Credito</option>
+              <option value="fiado" {% if sale.payment_method == "fiado" %}selected{% endif %}>Fiado</option>
+              <option value="vale" {% if sale.payment_method == "vale" %}selected{% endif %}>Vale</option>
+            </select>
+          </td>
           <td>R$ {{ "%.2f"|format(sale.total) }}</td>
           <td>
             {% if sale.charges %}
@@ -164,9 +183,17 @@
             {% endif %}
           </td>
           <td>{{ sale.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
+          <td>
+            {% if can("sales.create") %}
+            <form id="sale-{{ sale.id }}" method="post" action="/vendas/{{ sale.id }}/editar" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="secondary">Editar</button>
+            </form>
+            {% endif %}
+          </td>
         </tr>
         {% else %}
-        <tr><td colspan="8">Nenhuma venda registrada.</td></tr>
+        <tr><td colspan="11">Nenhuma venda registrada.</td></tr>
         {% endfor %}
       </tbody>
     </table>

@@ -56,7 +56,7 @@
         <td>
           <form id="user-{{ user.id }}" method="post" action="/usuarios/{{ user.id }}/editar" class="inline-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="secondary">Salvar</button>
+            <button type="submit" class="secondary">Editar</button>
           </form>
           {% if user.id != current_user.id %}
           <form method="post" action="/usuarios/{{ user.id }}/alternar-status" class="inline-form">
