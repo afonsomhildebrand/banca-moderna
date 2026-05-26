@@ -696,16 +696,54 @@ def update_purchase(
         if old_product is None or new_product is None:
             raise StockError("Produto nao encontrado.")
 
+        old_quantity = item.quantity
+        old_product_id = item.product_id
+
         if old_product.id == new_product.id:
-            new_balance = old_product.quantity_on_hand - item.quantity + quantity
+            quantity_delta = quantity - old_quantity
+            new_balance = old_product.quantity_on_hand + quantity_delta
             if new_balance < 0:
                 raise StockError("A alteracao deixaria o estoque negativo.")
             old_product.quantity_on_hand = new_balance
+            if quantity_delta:
+                db.add(
+                    StockMovement(
+                        product_id=old_product.id,
+                        movement_type=StockMovementType.adjustment,
+                        quantity=quantity_delta,
+                        unit_cost=new_cost,
+                        reference_type="purchase_edit",
+                        reference_id=purchase.id,
+                        notes="Ajuste por edicao de compra",
+                    )
+                )
         else:
-            if old_product.quantity_on_hand < item.quantity:
+            if old_product.quantity_on_hand < old_quantity:
                 raise StockError("Nao ha saldo suficiente para remover a entrada antiga.")
-            old_product.quantity_on_hand -= item.quantity
+            old_product.quantity_on_hand -= old_quantity
             new_product.quantity_on_hand += quantity
+            db.add(
+                StockMovement(
+                    product_id=old_product_id,
+                    movement_type=StockMovementType.adjustment,
+                    quantity=-old_quantity,
+                    unit_cost=item.unit_cost,
+                    reference_type="purchase_edit",
+                    reference_id=purchase.id,
+                    notes="Reversao por edicao de compra",
+                )
+            )
+            db.add(
+                StockMovement(
+                    product_id=product_id,
+                    movement_type=StockMovementType.adjustment,
+                    quantity=quantity,
+                    unit_cost=new_cost,
+                    reference_type="purchase_edit",
+                    reference_id=purchase.id,
+                    notes="Entrada por edicao de compra",
+                )
+            )
 
         total = money(new_cost * quantity)
         purchase.supplier_id = supplier_id
@@ -716,21 +754,6 @@ def update_purchase(
         item.unit_cost = new_cost
         item.total = total
         new_product.cost_price = new_cost
-        db.query(StockMovement).filter(
-            StockMovement.reference_type == "purchase",
-            StockMovement.reference_id == purchase.id,
-        ).delete(synchronize_session=False)
-        db.add(
-            StockMovement(
-                product_id=product_id,
-                movement_type=StockMovementType.purchase,
-                quantity=quantity,
-                unit_cost=new_cost,
-                reference_type="purchase",
-                reference_id=purchase.id,
-                notes="Entrada por compra editada",
-            )
-        )
         commit_or_error(db, "Nao foi possivel editar a compra.")
     except (StockError, ValueError) as exc:
         return templates.TemplateResponse(
@@ -809,6 +832,8 @@ def update_sale(
         sale = db.get(Sale, sale_id)
         if sale is None:
             raise StockError("Venda nao encontrada.")
+        if sale.invoice is not None:
+            raise StockError("Venda com NF emitida nao pode ser editada.")
         new_discount = money(discount)
         if new_discount < 0:
             raise StockError("O desconto nao pode ser negativo.")
@@ -931,6 +956,8 @@ def update_service_order(
         service_order = db.get(ServiceOrder, service_id)
         if service_order is None:
             raise StockError("Servico nao encontrado.")
+        if service_order.invoice is not None:
+            raise StockError("Servico com NF emitida nao pode ser editado.")
         service_amount = money(amount)
         if service_amount <= 0:
             raise StockError("O valor do servico deve ser maior que zero.")

@@ -2,7 +2,7 @@ from decimal import Decimal
 from re import search
 from urllib.parse import urlencode
 
-from app.models import Customer, PaymentCharge, Product, ProductKind, Purchase, Sale, ServiceOrder, Supplier, User
+from app.models import Customer, PaymentCharge, Product, ProductKind, Purchase, Sale, ServiceOrder, StockMovement, Supplier, User
 from app.security import hash_password
 
 
@@ -326,6 +326,9 @@ def test_admin_can_update_purchase_and_adjust_stock(client, db_session):
     assert purchase.document_number == "NF-1-EDIT"
     assert purchase.total == Decimal("22.50")
     assert purchase.items[0].quantity == 5
+    movements = db_session.query(StockMovement).filter(StockMovement.reference_id == purchase.id).order_by(StockMovement.id).all()
+    assert [movement.reference_type for movement in movements] == ["purchase", "purchase_edit"]
+    assert [movement.quantity for movement in movements] == [2, 3]
 
 
 def test_admin_can_update_sale_payment_and_discount(client, db_session):
@@ -368,6 +371,50 @@ def test_admin_can_update_sale_payment_and_discount(client, db_session):
     assert sale.total == Decimal("16.50")
     assert sale.payment_method == "dinheiro"
     assert sale.charges == []
+
+
+def test_sale_with_invoice_cannot_be_updated(client, db_session):
+    login(client)
+    product = Product(
+        sku="VENDA-NF-EDIT-001",
+        name="Produto Venda Com NF",
+        kind=ProductKind.other,
+        sale_price=Decimal("10.00"),
+        cost_price=Decimal("4.00"),
+        quantity_on_hand=5,
+        min_quantity=1,
+    )
+    db_session.add(product)
+    db_session.commit()
+    db_session.refresh(product)
+
+    sale_response = post_sale(client, product.id, 1, "10.00", "0", payment_method="pix")
+    assert sale_response.status_code == 303
+    sale = db_session.query(Sale).order_by(Sale.id.desc()).first()
+    invoice_response = client.post(
+        f"/vendas/{sale.id}/emitir-nf",
+        data={"csrf_token": csrf_token(client, "/vendas")},
+        follow_redirects=False,
+    )
+    assert invoice_response.status_code == 303
+
+    update_response = client.post(
+        f"/vendas/{sale.id}/editar",
+        data={
+            "csrf_token": csrf_token(client, "/vendas"),
+            "customer_id": "",
+            "employee_name": "Operador Editado",
+            "discount": "1.00",
+            "payment_method": "dinheiro",
+        },
+        follow_redirects=False,
+    )
+
+    assert update_response.status_code == 400
+    assert "Venda com NF emitida nao pode ser editada." in update_response.text
+    db_session.refresh(sale)
+    assert sale.discount == Decimal("0.00")
+    assert sale.payment_method == "pix"
 
 
 def test_admin_can_update_service_and_charge(client, db_session):
@@ -416,6 +463,56 @@ def test_admin_can_update_service_and_charge(client, db_session):
     assert service.charges[0].method == "boleto"
     assert service.charges[0].amount == Decimal("45.75")
     assert service.charges[0].digitable_line
+
+
+def test_service_with_invoice_cannot_be_updated(client, db_session):
+    login(client)
+    response = client.post(
+        "/servicos",
+        data={
+            "csrf_token": csrf_token(client, "/servicos"),
+            "description": "Servico NF Editavel",
+            "amount": "20.00",
+            "payment_method": "pix",
+            "customer_id": "",
+            "employee_name": "Admin",
+            "due_date": "",
+            "card_brand": "",
+            "installments": "1",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    service = db_session.query(ServiceOrder).filter(ServiceOrder.description == "Servico NF Editavel").one()
+    invoice_response = client.post(
+        f"/servicos/{service.id}/emitir-nf",
+        data={"csrf_token": csrf_token(client, "/servicos")},
+        follow_redirects=False,
+    )
+    assert invoice_response.status_code == 303
+
+    update_response = client.post(
+        f"/servicos/{service.id}/editar",
+        data={
+            "csrf_token": csrf_token(client, "/servicos"),
+            "description": "Servico NF Editado",
+            "amount": "45.75",
+            "payment_method": "boleto",
+            "customer_id": "",
+            "employee_name": "Tecnico Editado",
+            "due_date": "2026-05-20",
+            "card_brand": "",
+            "installments": "1",
+        },
+        follow_redirects=False,
+    )
+
+    assert update_response.status_code == 400
+    assert "Servico com NF emitida nao pode ser editado." in update_response.text
+    db_session.refresh(service)
+    assert service.description == "Servico NF Editavel"
+    assert service.amount == Decimal("20.00")
+    assert service.payment_method == "pix"
 
 
 def test_issue_invoice_from_sale_history(client, db_session):

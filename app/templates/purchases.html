@@ -38,9 +38,10 @@
     <thead><tr><th>#</th><th>Fornecedor</th><th>Produto</th><th>Qtd.</th><th>Custo</th><th>Documento</th><th>Total</th><th>Status</th><th>Data</th><th>Acao</th></tr></thead>
     <tbody>
       {% for purchase in purchases %}
-      {% set item = purchase.items[0] %}
+      {% set item = purchase.items[0] if purchase.items else none %}
       <tr>
         <td>{{ purchase.id }}</td>
+        {% if item %}
         <td>
           <select form="purchase-{{ purchase.id }}" name="supplier_id">
             {% for supplier in suppliers %}
@@ -67,6 +68,14 @@
             <button type="submit" class="secondary">Editar</button>
           </form>
         </td>
+        {% else %}
+        <td>{{ purchase.supplier.name }}</td>
+        <td colspan="4">Compra sem item vinculado.</td>
+        <td>R$ {{ "%.2f"|format(purchase.total) }}</td>
+        <td>{{ purchase.status.value }}</td>
+        <td>{{ purchase.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
+        <td>-</td>
+        {% endif %}
       </tr>
       {% else %}
       <tr><td colspan="10">Nenhuma compra registrada.</td></tr>
